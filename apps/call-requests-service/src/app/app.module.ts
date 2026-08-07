@@ -4,8 +4,6 @@ import configuration from '../config/configuration';
 import { AuthModule } from '../contexts/auth/auth.module';
 import { UserModule } from '../contexts/user/user.module';
 import { MongoConnectionModule } from '../shared-kernel/mongo-connection.module';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 
 @Module({
   imports: [
@@ -19,7 +17,5 @@ import { AppService } from './app.service';
     UserModule,
     AuthModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}
