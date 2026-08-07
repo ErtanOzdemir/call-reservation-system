@@ -46,3 +46,8 @@ Thumbs.db
 
 .nx/polygraph
 vite.config.*.timestamp*
+
+# Local environment configuration
+.env
+.env.*
+!.env.example
