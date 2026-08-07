@@ -1,51 +1,48 @@
-// Uncomment this line to use CSS modules
-// import styles from './app.module.css';
-import NxWelcome from './nx-welcome';
+import { Role } from '@call-reservation/shared-types';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider, getRolePath, useAuth } from '../auth/auth-context';
+import { ProtectedRoute } from '../auth/protected-route';
+import { AdminHomePage } from '../pages/admin-home-page';
+import { LoginPage } from '../pages/login-page';
+import { RegisterPage } from '../pages/register-page';
+import { UserHomePage } from '../pages/user-home-page';
 
-import { Route, Routes, Link } from 'react-router-dom';
+function RootRoute() {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <div className="page-status">Restoring your session…</div>;
+  }
+
+  return <Navigate to={user ? getRolePath(user.role) : '/login'} replace />;
+}
 
 export function App() {
   return (
-    <div>
-      <NxWelcome title="web-service" />
-
-      {/* START: routes */}
-      {/* These routes and navigation have been generated for you */}
-      {/* Feel free to move and update them to fit your needs */}
-      <br />
-      <hr />
-      <br />
-      <div role="navigation">
-        <ul>
-          <li>
-            <Link to="/">Home</Link>
-          </li>
-          <li>
-            <Link to="/page-2">Page 2</Link>
-          </li>
-        </ul>
-      </div>
+    <AuthProvider>
       <Routes>
+        <Route path="/" element={<RootRoute />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route
-          path="/"
+          path="/user"
           element={
-            <div>
-              This is the generated root route.{' '}
-              <Link to="/page-2">Click here for page 2.</Link>
-            </div>
+            <ProtectedRoute role={Role.USER}>
+              <UserHomePage />
+            </ProtectedRoute>
           }
         />
         <Route
-          path="/page-2"
+          path="/admin"
           element={
-            <div>
-              <Link to="/">Click here to go back to root page.</Link>
-            </div>
+            <ProtectedRoute role={Role.ADMIN}>
+              <AdminHomePage />
+            </ProtectedRoute>
           }
         />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      {/* END: routes */}
-    </div>
+    </AuthProvider>
   );
 }
 

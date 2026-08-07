@@ -30,6 +30,12 @@ describe('configuration', () => {
     expect(configuration().app.port).toBe(3101);
   });
 
+  it('allows the local web app by default', () => {
+    delete process.env.CORS_ORIGIN;
+
+    expect(configuration().app.corsOrigin).toBe('http://localhost:4200');
+  });
+
   it('rejects an invalid port', () => {
     process.env.PORT = '70000';
 

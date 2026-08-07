@@ -6,6 +6,7 @@ const environmentSchema = z.object({
   RABBITMQ_URL: z.url(),
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN_SECONDS: z.coerce.number().int().positive().default(3600),
+  CORS_ORIGIN: z.url().default('http://localhost:4200'),
 });
 
 export default () => {
@@ -15,11 +16,13 @@ export default () => {
     RABBITMQ_URL: process.env.RABBITMQ_URL,
     JWT_SECRET: process.env.JWT_SECRET,
     JWT_EXPIRES_IN_SECONDS: process.env.JWT_EXPIRES_IN_SECONDS,
+    CORS_ORIGIN: process.env.CORS_ORIGIN,
   });
 
   return {
     app: {
       port: environment.PORT,
+      corsOrigin: environment.CORS_ORIGIN,
     },
     database: {
       uri: environment.MONGODB_URI,

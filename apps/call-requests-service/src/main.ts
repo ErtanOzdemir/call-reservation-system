@@ -15,6 +15,9 @@ async function bootstrap() {
       whitelist: true,
     }),
   );
+  app.enableCors({
+    origin: configService.getOrThrow<string>('app.corsOrigin'),
+  });
   app.setGlobalPrefix(globalPrefix);
   const port = configService.getOrThrow<number>('app.port');
   await app.listen(port);
