@@ -1,0 +1,70 @@
+services:
+  mongodb:
+    image: mongo:8.2.12-noble
+    hostname: mongodb
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --bind_ip_all
+      - --oplogSize
+      - '128'
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --host localhost:27017 --quiet --eval
+          "quit(db.adminCommand({ hello: 1 }).isWritablePrimary ? 0 : 1)"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - backend
+
+  mongodb-init:
+    image: mongo:8.2.12-noble
+    depends_on:
+      mongodb:
+        condition: service_started
+    entrypoint:
+      - /bin/bash
+      - -ec
+      - |
+        until mongosh --host mongodb:27017 --quiet --eval \
+          "quit(db.adminCommand({ ping: 1 }).ok ? 0 : 1)"; do
+          sleep 2
+        done
+        exec mongosh --host mongodb:27017 --quiet \
+          --file /scripts/init-replica-set.js
+    volumes:
+      - ./mongodb/init-replica-set.js:/scripts/init-replica-set.js:ro
+    restart: 'no'
+    networks:
+      - backend
+
+  rabbitmq:
+    image: rabbitmq:4.3.4-management-alpine
+    hostname: rabbitmq
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - backend
+
+volumes:
+  mongodb-data:
+  rabbitmq-data:
+
+networks:
+  backend:
+    driver: bridge

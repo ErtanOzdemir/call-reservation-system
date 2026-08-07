@@ -1,0 +1,13 @@
+services:
+  mongodb:
+    ports:
+      - '127.0.0.1:${MONGODB_PORT:-27017}:27017'
+
+  rabbitmq:
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-reservation}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-reservation}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST:-call-reservation}
+    ports:
+      - '127.0.0.1:${RABBITMQ_AMQP_PORT:-5672}:5672'
+      - '127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672'
