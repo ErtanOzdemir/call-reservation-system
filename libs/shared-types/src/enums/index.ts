@@ -1,2 +1,1 @@
-// Shared enums go here.
-export {};
+export * from './user';

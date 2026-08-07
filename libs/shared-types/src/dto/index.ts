@@ -1,2 +1,1 @@
-// REST DTOs go here.
-export {};
+export * from './user';
