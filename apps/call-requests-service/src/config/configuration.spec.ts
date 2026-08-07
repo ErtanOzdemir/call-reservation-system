@@ -10,6 +10,7 @@ describe('configuration', () => {
         'mongodb://localhost:27017/call_requests?replicaSet=rs0&directConnection=true',
       RABBITMQ_URL:
         'amqp://reservation:reservation@localhost:5672/call-reservation',
+      JWT_SECRET: 'test-jwt-secret-that-is-at-least-32-characters',
     };
   });
 
@@ -43,6 +44,24 @@ describe('configuration', () => {
 
   it('rejects a missing RabbitMQ URL', () => {
     delete process.env.RABBITMQ_URL;
+
+    expect(configuration).toThrow();
+  });
+
+  it('uses a one-hour JWT expiry by default', () => {
+    delete process.env.JWT_EXPIRES_IN_SECONDS;
+
+    expect(configuration().auth.jwtExpiresInSeconds).toBe(3600);
+  });
+
+  it('coerces the JWT expiry to a number', () => {
+    process.env.JWT_EXPIRES_IN_SECONDS = '900';
+
+    expect(configuration().auth.jwtExpiresInSeconds).toBe(900);
+  });
+
+  it('rejects a JWT secret shorter than 32 characters', () => {
+    process.env.JWT_SECRET = 'too-short';
 
     expect(configuration).toThrow();
   });
