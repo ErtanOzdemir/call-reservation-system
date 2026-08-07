@@ -1,0 +1,17 @@
+{
+  "name": "scheduler-service-e2e",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "implicitDependencies": ["scheduler-service"],
+  "targets": {
+    "e2e": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{e2eProjectRoot}"],
+      "dependsOn": ["scheduler-service:build", "scheduler-service:serve"],
+      "options": {
+        "jestConfig": "apps/scheduler-service-e2e/jest.config.cts",
+        "passWithNoTests": true
+      }
+    }
+  }
+}
