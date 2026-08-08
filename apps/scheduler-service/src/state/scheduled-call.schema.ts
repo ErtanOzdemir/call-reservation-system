@@ -1,12 +1,9 @@
 import { CallStatus } from '@call-reservation/shared-types';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument } from 'mongoose';
 
-@Schema()
+@Schema({ _id: false })
 export class ReminderOutboxEventRecord {
-  /** Own id so the dispatcher can $pull exactly this one once fired. */
-  _id?: Types.ObjectId;
-
   @Prop({ required: true })
   requestId!: string;
 
@@ -34,9 +31,14 @@ export class ScheduledCallRecord {
   @Prop({ required: true, enum: Object.values(CallStatus), type: String })
   status!: CallStatus;
 
-  /** Reminder wakeups awaiting delivery — written atomically with the rest of this document. */
-  @Prop({ type: [ReminderOutboxEventSchema], default: [] })
-  pendingReminders!: ReminderOutboxEventRecord[];
+  /**
+   * At most one pending reminder per request, ever — a single embedded
+   * field (not an array) so re-processing a redelivered call.approved is a
+   * $set (idempotent, overwrite) instead of a $push (would double the
+   * pending reminder and eventually send it twice).
+   */
+  @Prop({ type: ReminderOutboxEventSchema, required: false })
+  pendingReminder?: ReminderOutboxEventRecord;
 }
 
 export type ScheduledCallDocument = HydratedDocument<ScheduledCallRecord>;

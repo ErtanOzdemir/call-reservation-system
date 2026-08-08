@@ -45,6 +45,10 @@ export class CallEventsConsumer implements OnModuleInit {
       );
     }
 
+    // One unacked message at a time, so emails for the same request are
+    // sent in the order the events actually happened.
+    await channel.prefetch(1);
+
     await channel.consume(COMMUNICATION_QUEUE, (message) => {
       if (!message) {
         return;

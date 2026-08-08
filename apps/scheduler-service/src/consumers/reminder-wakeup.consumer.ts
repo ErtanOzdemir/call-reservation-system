@@ -43,6 +43,10 @@ export class ReminderWakeupConsumer implements OnModuleInit {
       REMINDER_WAKEUP_ROUTING_KEY,
     );
 
+    // See CallEventsConsumer for why: one unacked message at a time, so
+    // wakeups for the same requestId can't be processed out of order.
+    await channel.prefetch(1);
+
     await channel.consume(REMINDER_WAKEUP_QUEUE, (message) => {
       if (!message) {
         return;

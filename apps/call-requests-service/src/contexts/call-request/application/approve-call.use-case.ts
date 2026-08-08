@@ -6,6 +6,7 @@ import {
 } from '@call-reservation/shared-types';
 import { Inject, Injectable } from '@nestjs/common';
 import { CallRequestNotFoundError } from '../domain/errors/call-request-not-found.error';
+import { InvalidStateTransitionError } from '../domain/errors/invalid-state-transition.error';
 import { CallLifecyclePolicy } from '../domain/policies/call-lifecycle.policy';
 import {
   CALL_REQUEST_REPOSITORY,
@@ -41,10 +42,17 @@ export class ApproveCallUseCase {
       approvedAt: new Date().toISOString(),
     };
 
-    const savedCallRequest = await this.callRequestRepository.save(
+    const savedCallRequest = await this.callRequestRepository.transition(
       approvedCallRequest,
+      callRequest.status,
       { routingKey: RoutingKey.CallApproved, payload: { ...event } },
     );
+
+    // Someone else (a concurrent approve/reject call) already moved this
+    // request past REQUESTED between the read above and this write.
+    if (!savedCallRequest) {
+      throw new InvalidStateTransitionError(callRequest.status, CallStatus.SCHEDULED);
+    }
 
     return toCallRequestDto(savedCallRequest);
   }

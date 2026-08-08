@@ -1,3 +1,4 @@
+import { CallStatus } from '@call-reservation/shared-types';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -27,13 +28,43 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
     return record ? this.toDomain(record) : null;
   }
 
-  async save(
+  async create(
     callRequest: CallRequest,
     event: OutboxEvent,
   ): Promise<CallRequest> {
+    const record = await this.callRequestModel.create({
+      id: callRequest.id,
+      email: callRequest.email,
+      phoneNumber: callRequest.phoneNumber,
+      scheduledAt: callRequest.scheduledAt,
+      status: callRequest.status,
+      requestedByUserId: callRequest.requestedByUserId,
+      pendingEvents: [
+        {
+          routingKey: event.routingKey,
+          payload: event.payload,
+          occurredAt: new Date(),
+        },
+      ],
+    });
+
+    return this.toDomain(record);
+  }
+
+  /**
+   * `status: expectedCurrentStatus` in the filter is the whole guard: if
+   * another request already moved this document past that status, nothing
+   * matches, upsert is off, and this resolves to null instead of silently
+   * creating a stray document or double-applying the transition.
+   */
+  async transition(
+    callRequest: CallRequest,
+    expectedCurrentStatus: CallStatus,
+    event: OutboxEvent,
+  ): Promise<CallRequest | null> {
     const record = await this.callRequestModel
       .findOneAndUpdate(
-        { id: callRequest.id },
+        { id: callRequest.id, status: expectedCurrentStatus },
         {
           $set: {
             email: callRequest.email,
@@ -50,11 +81,11 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
             },
           },
         },
-        { upsert: true, new: true },
+        { upsert: false, new: true },
       )
       .exec();
 
-    return this.toDomain(record);
+    return record ? this.toDomain(record) : null;
   }
 
   private toDomain(record: CallRequestDocument): CallRequest {

@@ -20,13 +20,26 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
     return false;
   }
 
-  async save(
+  async create(): Promise<CallRequest> {
+    throw new Error('not used by ApproveCallUseCase');
+  }
+
+  /** Mirrors the Mongo adapter's conditional-match: null if the stored
+   * status no longer equals expectedCurrentStatus. */
+  async transition(
     callRequest: CallRequest,
+    expectedCurrentStatus: CallStatus,
     event: OutboxEvent,
-  ): Promise<CallRequest> {
+  ): Promise<CallRequest | null> {
+    const current = this.requests.get(callRequest.id as string);
+
+    if (!current || current.status !== expectedCurrentStatus) {
+      return null;
+    }
+
     const saved = new CallRequest({
       ...callRequest,
-      createdAt: callRequest.createdAt ?? CREATED_AT,
+      createdAt: current.createdAt ?? CREATED_AT,
     });
     this.requests.set(saved.id as string, saved);
     this.events.push(event);
@@ -87,6 +100,20 @@ describe('ApproveCallUseCase', () => {
     const repository = new InMemoryCallRequestRepository();
     seedRequest(repository, CallStatus.REJECTED);
     const useCase = new ApproveCallUseCase(repository);
+
+    await expect(useCase.execute('req-1')).rejects.toBeInstanceOf(
+      InvalidStateTransitionError,
+    );
+  });
+
+  it('rejects if the request was transitioned by someone else between the read and the write', async () => {
+    const repository = new InMemoryCallRequestRepository();
+    seedRequest(repository, CallStatus.REQUESTED);
+    const useCase = new ApproveCallUseCase(repository);
+    // Simulate a concurrent reject winning the race right after our read.
+    jest
+      .spyOn(repository, 'transition')
+      .mockResolvedValueOnce(null);
 
     await expect(useCase.execute('req-1')).rejects.toBeInstanceOf(
       InvalidStateTransitionError,

@@ -29,20 +29,19 @@ export class ScheduledCallRepository {
     record: ScheduledCallInput,
     options?: { scheduleReminderAt: Date },
   ): Promise<void> {
+    const fieldsToSet: Record<string, unknown> = { ...record };
+
+    if (options) {
+      fieldsToSet.pendingReminder = {
+        requestId: record.requestId,
+        targetFireAt: options.scheduleReminderAt,
+      };
+    }
+
     await this.scheduledCallModel
       .updateOne(
         { requestId: record.requestId },
-        {
-          $set: record,
-          ...(options && {
-            $push: {
-              pendingReminders: {
-                requestId: record.requestId,
-                targetFireAt: options.scheduleReminderAt,
-              },
-            },
-          }),
-        },
+        { $set: fieldsToSet },
         { upsert: true },
       )
       .exec();

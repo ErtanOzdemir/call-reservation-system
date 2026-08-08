@@ -29,14 +29,10 @@ function flushMicrotasks(): Promise<void> {
 }
 
 describe('ReminderOutboxDispatcherService', () => {
-  it('dispatches reminders already pending at startup and clears them', async () => {
-    const reminder = {
-      _id: 'reminder-1',
-      requestId: 'req-1',
-      targetFireAt: new Date(Date.now() + 60_000),
-    };
+  it('dispatches a reminder already pending at startup and clears it', async () => {
+    const targetFireAt = new Date(Date.now() + 60_000);
     const model = createModelMock([
-      { requestId: 'req-1', pendingReminders: [reminder] },
+      { requestId: 'req-1', pendingReminder: { requestId: 'req-1', targetFireAt } },
     ]);
     const rabbitMq = {
       channel: { publish: jest.fn() },
@@ -55,20 +51,16 @@ describe('ReminderOutboxDispatcherService', () => {
       { headers: { 'x-delay': expect.any(Number) }, persistent: true },
     );
     expect(model.updateOne).toHaveBeenCalledWith(
-      { requestId: 'req-1' },
-      { $pull: { pendingReminders: { _id: reminder._id } } },
+      { requestId: 'req-1', 'pendingReminder.targetFireAt': targetFireAt },
+      { $unset: { pendingReminder: '' } },
     );
   });
 
   it('recomputes the delay from targetFireAt rather than trusting a stale value', async () => {
     // Already due — should clamp to 0, not go negative.
-    const reminder = {
-      _id: 'reminder-1',
-      requestId: 'req-1',
-      targetFireAt: new Date(Date.now() - 60_000),
-    };
+    const targetFireAt = new Date(Date.now() - 60_000);
     const model = createModelMock([
-      { requestId: 'req-1', pendingReminders: [reminder] },
+      { requestId: 'req-1', pendingReminder: { requestId: 'req-1', targetFireAt } },
     ]);
     const rabbitMq = {
       channel: { publish: jest.fn() },
@@ -88,7 +80,25 @@ describe('ReminderOutboxDispatcherService', () => {
     );
   });
 
-  it('dispatches reminders that arrive through the live change stream', async () => {
+  it('does nothing for a request with no pending reminder', async () => {
+    const model = createModelMock([
+      { requestId: 'req-1', pendingReminder: undefined },
+    ]);
+    const rabbitMq = {
+      channel: { publish: jest.fn() },
+    } as unknown as RabbitMqConnectionService;
+    const service = new ReminderOutboxDispatcherService(
+      model as never as import('mongoose').Model<ScheduledCallDocument>,
+      rabbitMq,
+    );
+
+    await service.onModuleInit();
+
+    expect(rabbitMq.channel.publish).not.toHaveBeenCalled();
+    expect(model.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('dispatches a reminder that arrives through the live change stream', async () => {
     const model = createModelMock([]);
     const rabbitMq = {
       channel: { publish: jest.fn() },
@@ -102,13 +112,10 @@ describe('ReminderOutboxDispatcherService', () => {
     model.changeStreamListeners['change']({
       fullDocument: {
         requestId: 'req-2',
-        pendingReminders: [
-          {
-            _id: 'reminder-2',
-            requestId: 'req-2',
-            targetFireAt: new Date(Date.now() + 120_000),
-          },
-        ],
+        pendingReminder: {
+          requestId: 'req-2',
+          targetFireAt: new Date(Date.now() + 120_000),
+        },
       },
     });
     await flushMicrotasks();
@@ -121,19 +128,30 @@ describe('ReminderOutboxDispatcherService', () => {
     );
   });
 
-  it('isolates a failure to one document during the startup sweep', async () => {
-    const okReminder = {
-      _id: 'reminder-ok',
-      requestId: 'req-ok',
-      targetFireAt: new Date(Date.now() + 60_000),
-    };
+  it('isolates a publish failure to one document during the startup sweep', async () => {
     const model = createModelMock([
-      { requestId: 'req-bad', pendingReminders: null }, // will throw iterating
-      { requestId: 'req-ok', pendingReminders: [okReminder] },
+      {
+        requestId: 'req-bad',
+        pendingReminder: {
+          requestId: 'req-bad',
+          targetFireAt: new Date(Date.now() + 60_000),
+        },
+      },
+      {
+        requestId: 'req-ok',
+        pendingReminder: {
+          requestId: 'req-ok',
+          targetFireAt: new Date(Date.now() + 60_000),
+        },
+      },
     ]);
-    const rabbitMq = {
-      channel: { publish: jest.fn() },
-    } as unknown as RabbitMqConnectionService;
+    const publish = jest
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error('channel closed');
+      })
+      .mockImplementationOnce(() => undefined);
+    const rabbitMq = { channel: { publish } } as unknown as RabbitMqConnectionService;
     const service = new ReminderOutboxDispatcherService(
       model as never as import('mongoose').Model<ScheduledCallDocument>,
       rabbitMq,
@@ -141,7 +159,9 @@ describe('ReminderOutboxDispatcherService', () => {
 
     await service.onModuleInit();
 
-    expect(rabbitMq.channel.publish).toHaveBeenCalledWith(
+    expect(publish).toHaveBeenCalledTimes(2);
+    expect(publish).toHaveBeenNthCalledWith(
+      2,
       'reminder.delay',
       'reminder.wakeup',
       Buffer.from(JSON.stringify({ requestId: 'req-ok' })),

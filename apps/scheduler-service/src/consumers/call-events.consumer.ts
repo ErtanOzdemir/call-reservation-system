@@ -36,6 +36,12 @@ export class CallEventsConsumer implements OnModuleInit {
       );
     }
 
+    // One unacked message at a time: without this, RabbitMQ can hand us a
+    // second message for the same requestId before the first one's write
+    // has finished, and whichever write lands last wins regardless of
+    // delivery order.
+    await channel.prefetch(1);
+
     await channel.consume(SCHEDULER_QUEUE, (message) => {
       if (!message) {
         return;

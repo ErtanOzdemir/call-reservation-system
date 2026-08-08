@@ -32,7 +32,7 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
     );
   }
 
-  async save(
+  async create(
     callRequest: CallRequest,
     event: OutboxEvent,
   ): Promise<CallRequest> {
@@ -42,6 +42,10 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
     });
     this.saved.push({ callRequest: savedCallRequest, event });
     return savedCallRequest;
+  }
+
+  async transition(): Promise<CallRequest | null> {
+    throw new Error('not used by ReserveCallUseCase');
   }
 }
 

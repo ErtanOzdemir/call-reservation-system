@@ -26,13 +26,13 @@ type ScheduledCallChange =
   | ChangeStreamUpdateDocument<ScheduledCallRecord>;
 
 /**
- * Delivers reminder wakeups written to `pendingReminders` (see
+ * Delivers the reminder wakeup written to `pendingReminder` (see
  * scheduled-call.schema.ts) to RabbitMQ's delayed exchange, recomputing the
- * remaining delay from each reminder's absolute targetFireAt rather than
- * trusting a pre-computed one — this dispatcher may run the catch-up sweep
- * well after the reminder was originally queued. Same shape as
- * call-requests-service's OutboxDispatcherService: catch up once at
- * startup, then react to a live change stream — no polling.
+ * remaining delay from its absolute targetFireAt rather than trusting a
+ * pre-computed one — this dispatcher may run the catch-up sweep well after
+ * the reminder was originally queued. Same shape as call-requests-service's
+ * OutboxDispatcherService: catch up once at startup, then react to a live
+ * change stream — no polling.
  */
 @Injectable()
 export class ReminderOutboxDispatcherService
@@ -58,15 +58,15 @@ export class ReminderOutboxDispatcherService
 
   private async dispatchAlreadyPending(): Promise<void> {
     const requestsWithPendingReminders = await this.scheduledCallModel
-      .find({ 'pendingReminders.0': { $exists: true } })
+      .find({ pendingReminder: { $exists: true } })
       .exec();
 
     for (const request of requestsWithPendingReminders) {
       // Isolated per document — one still-failing request must not block
       // the rest of the catch-up sweep.
-      await this.dispatchPendingReminders(request).catch((error: unknown) =>
+      await this.dispatchPendingReminder(request).catch((error: unknown) =>
         this.logger.error(
-          `Failed to dispatch pending reminders for call request ${request.requestId}.`,
+          `Failed to dispatch the pending reminder for call request ${request.requestId}.`,
           error,
         ),
       );
@@ -86,9 +86,9 @@ export class ReminderOutboxDispatcherService
         return;
       }
 
-      this.dispatchPendingReminders(change.fullDocument).catch(
+      this.dispatchPendingReminder(change.fullDocument).catch(
         (error: unknown) =>
-          this.logger.error('Failed to dispatch outbox reminders.', error),
+          this.logger.error('Failed to dispatch an outbox reminder.', error),
       );
     });
 
@@ -97,32 +97,42 @@ export class ReminderOutboxDispatcherService
     );
   }
 
-  private async dispatchPendingReminders(
-    request: Pick<ScheduledCallRecord, 'requestId' | 'pendingReminders'>,
+  private async dispatchPendingReminder(
+    request: Pick<ScheduledCallRecord, 'requestId' | 'pendingReminder'>,
   ): Promise<void> {
-    for (const reminder of request.pendingReminders) {
-      const delayMs = Math.max(
-        0,
-        new Date(reminder.targetFireAt).getTime() - Date.now(),
-      );
+    const reminder = request.pendingReminder;
 
-      this.rabbitMq.channel.publish(
-        REMINDER_DELAY_EXCHANGE,
-        REMINDER_WAKEUP_ROUTING_KEY,
-        Buffer.from(JSON.stringify({ requestId: reminder.requestId })),
-        { headers: { 'x-delay': delayMs }, persistent: true },
-      );
-
-      await this.scheduledCallModel
-        .updateOne(
-          { requestId: request.requestId },
-          { $pull: { pendingReminders: { _id: reminder._id } } },
-        )
-        .exec();
-
-      this.logger.log(
-        `Dispatched reminder wakeup for ${reminder.requestId} (delay ${delayMs}ms).`,
-      );
+    if (!reminder) {
+      return;
     }
+
+    const delayMs = Math.max(
+      0,
+      new Date(reminder.targetFireAt).getTime() - Date.now(),
+    );
+
+    this.rabbitMq.channel.publish(
+      REMINDER_DELAY_EXCHANGE,
+      REMINDER_WAKEUP_ROUTING_KEY,
+      Buffer.from(JSON.stringify({ requestId: reminder.requestId })),
+      { headers: { 'x-delay': delayMs }, persistent: true },
+    );
+
+    // Only clear the reminder we just dispatched — matching on
+    // targetFireAt guards against clobbering a newer one that could in
+    // theory have replaced it between the read above and this write.
+    await this.scheduledCallModel
+      .updateOne(
+        {
+          requestId: request.requestId,
+          'pendingReminder.targetFireAt': reminder.targetFireAt,
+        },
+        { $unset: { pendingReminder: '' } },
+      )
+      .exec();
+
+    this.logger.log(
+      `Dispatched reminder wakeup for ${reminder.requestId} (delay ${delayMs}ms).`,
+    );
   }
 }

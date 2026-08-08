@@ -13,6 +13,7 @@ function createChannelMock() {
   return {
     assertQueue: jest.fn(),
     bindQueue: jest.fn(),
+    prefetch: jest.fn().mockResolvedValue(undefined),
     consume: jest.fn((_queue: string, handler: MessageHandler) => {
       deliver = handler;
     }),

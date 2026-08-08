@@ -55,7 +55,7 @@ export class ReserveCallUseCase {
       requestedByUserId: callRequest.requestedByUserId,
     };
 
-    const savedCallRequest = await this.callRequestRepository.save(
+    const savedCallRequest = await this.callRequestRepository.create(
       callRequest,
       { routingKey: RoutingKey.CallRequested, payload: { ...event } },
     );
