@@ -8,6 +8,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Channel, ChannelModel, connect } from 'amqplib';
 
+
+export const REMINDER_DELAY_EXCHANGE = 'reminder.delay';
+export const REMINDER_WAKEUP_ROUTING_KEY = 'reminder.wakeup';
+
 @Injectable()
 export class RabbitMqConnectionService
   implements OnModuleInit, OnModuleDestroy
@@ -22,11 +26,18 @@ export class RabbitMqConnectionService
     const url = this.configService.getOrThrow<string>('rabbitmq.url');
     this.connection = await connect(url);
     this._channel = await this.connection.createChannel();
+
     await this._channel.assertExchange(CALL_EVENTS_EXCHANGE, 'topic', {
       durable: true,
     });
+    await this._channel.assertExchange(
+      REMINDER_DELAY_EXCHANGE,
+      'x-delayed-message',
+      { durable: true, arguments: { 'x-delayed-type': 'direct' } },
+    );
+
     this.logger.log(
-      `Connected to RabbitMQ; exchange "${CALL_EVENTS_EXCHANGE}" is ready.`,
+      `Connected to RabbitMQ; exchanges "${CALL_EVENTS_EXCHANGE}" and "${REMINDER_DELAY_EXCHANGE}" are ready.`,
     );
   }
 

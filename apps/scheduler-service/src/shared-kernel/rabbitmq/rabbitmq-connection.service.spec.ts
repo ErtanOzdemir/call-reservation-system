@@ -1,7 +1,10 @@
 import { CALL_EVENTS_EXCHANGE } from '@call-reservation/shared-types';
 import { ConfigService } from '@nestjs/config';
 import * as amqplib from 'amqplib';
-import { RabbitMqConnectionService } from './rabbitmq-connection.service';
+import {
+  RabbitMqConnectionService,
+  REMINDER_DELAY_EXCHANGE,
+} from './rabbitmq-connection.service';
 
 jest.mock('amqplib');
 
@@ -36,6 +39,18 @@ describe('RabbitMqConnectionService', () => {
       CALL_EVENTS_EXCHANGE,
       'topic',
       { durable: true },
+    );
+  });
+
+  it('declares its own delayed exchange for the 2-hours-before reminder', async () => {
+    const service = new RabbitMqConnectionService(configService);
+
+    await service.onModuleInit();
+
+    expect(channel.assertExchange).toHaveBeenCalledWith(
+      REMINDER_DELAY_EXCHANGE,
+      'x-delayed-message',
+      { durable: true, arguments: { 'x-delayed-type': 'direct' } },
     );
   });
 

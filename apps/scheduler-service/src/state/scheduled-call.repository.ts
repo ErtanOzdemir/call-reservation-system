@@ -31,4 +31,21 @@ export class ScheduledCallRepository {
       )
       .exec();
   }
+
+  async findByRequestId(
+    requestId: string,
+  ): Promise<ScheduledCallInput | null> {
+    const record = await this.scheduledCallModel.findOne({ requestId }).exec();
+
+    if (!record) {
+      return null;
+    }
+
+    return {
+      requestId: record.requestId,
+      email: record.email,
+      scheduledAt: record.scheduledAt,
+      status: record.status,
+    };
+  }
 }
