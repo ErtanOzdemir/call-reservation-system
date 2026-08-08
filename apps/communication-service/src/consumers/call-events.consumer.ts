@@ -4,6 +4,7 @@ import {
   CallCanceledEvent,
   CallRejectedEvent,
   CallRequestedEvent,
+  DigestDueEvent,
   ReminderDueEvent,
   RoutingKey,
 } from '@call-reservation/shared-types';
@@ -17,6 +18,7 @@ import {
   EmailMessage,
   renderCallRequestedEmail,
 } from '../templates/call-requested.template';
+import { renderDigestDueEmail } from '../templates/digest-due.template';
 import { renderReminderEmails } from '../templates/reminder.template';
 
 const COMMUNICATION_QUEUE = 'communication.call-events';
@@ -26,6 +28,7 @@ const BOUND_ROUTING_KEYS = [
   RoutingKey.CallRejected,
   RoutingKey.CallCanceled,
   RoutingKey.ReminderDue,
+  RoutingKey.DigestDue,
 ];
 
 /** One queue, one consumer — see scheduler-service's CallEventsConsumer for why. */
@@ -91,6 +94,9 @@ export class CallEventsConsumer implements OnModuleInit {
         for (const email of renderReminderEmails(payload as ReminderDueEvent)) {
           this.send(email);
         }
+        break;
+      case RoutingKey.DigestDue:
+        this.send(renderDigestDueEmail(payload as DigestDueEvent));
         break;
       default:
         this.logger.warn(

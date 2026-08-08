@@ -59,6 +59,27 @@ export class ScheduledCallRepository {
       .exec();
   }
 
+  /** SCHEDULED calls whose scheduledAt falls in [start, end) — for the daily digest. */
+  async findScheduledBetween(
+    start: Date,
+    end: Date,
+  ): Promise<ScheduledCallInput[]> {
+    const records = await this.scheduledCallModel
+      .find({
+        status: CallStatus.SCHEDULED,
+        scheduledAt: { $gte: start, $lt: end },
+      })
+      .sort({ scheduledAt: 1 })
+      .exec();
+
+    return records.map((record) => ({
+      requestId: record.requestId,
+      email: record.email,
+      scheduledAt: record.scheduledAt,
+      status: record.status,
+    }));
+  }
+
   async findByRequestId(
     requestId: string,
   ): Promise<ScheduledCallInput | null> {

@@ -62,6 +62,7 @@ describe('CallEventsConsumer', () => {
       RoutingKey.CallRejected,
       RoutingKey.CallCanceled,
       RoutingKey.ReminderDue,
+      RoutingKey.DigestDue,
     ]) {
       expect(channel.bindQueue).toHaveBeenCalledWith(
         'communication.call-events',
@@ -174,6 +175,33 @@ describe('CallEventsConsumer', () => {
     expect(consoleLogSpy).toHaveBeenCalledWith(
       expect.stringContaining('to=customer@example.com'),
     );
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect.stringContaining('to=admin@call-reservation.local'),
+    );
+    expect(channel.ack).toHaveBeenCalledWith(message);
+  });
+
+  it('emails the admin a single digest on digest.due', async () => {
+    const channel = createChannelMock();
+    const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
+    const consumer = new CallEventsConsumer(rabbitMq);
+    await consumer.onModuleInit();
+
+    const message = messageFor(RoutingKey.DigestDue, {
+      adminEmail: 'admin@call-reservation.local',
+      date: '2026-08-10',
+      calls: [
+        {
+          requestId: 'req-1',
+          email: 'customer@example.com',
+          scheduledAt: '2026-08-10T07:00:00.000Z',
+        },
+      ],
+    });
+    channel.deliver(message);
+    await flushMicrotasks();
+
+    expect(consoleLogSpy).toHaveBeenCalledTimes(1);
     expect(consoleLogSpy).toHaveBeenCalledWith(
       expect.stringContaining('to=admin@call-reservation.local'),
     );
