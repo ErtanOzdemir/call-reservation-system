@@ -5,6 +5,7 @@ import { AuthModule } from '../contexts/auth/auth.module';
 import { CallRequestModule } from '../contexts/call-request/call-request.module';
 import { UserModule } from '../contexts/user/user.module';
 import { MongoConnectionModule } from '../shared-kernel/mongo-connection.module';
+import { RabbitMqModule } from '../shared-kernel/rabbitmq/rabbitmq.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { MongoConnectionModule } from '../shared-kernel/mongo-connection.module'
       load: [configuration],
     }),
     MongoConnectionModule,
+    RabbitMqModule,
     UserModule,
     AuthModule,
     CallRequestModule,
