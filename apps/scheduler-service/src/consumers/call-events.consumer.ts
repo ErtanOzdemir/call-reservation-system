@@ -1,6 +1,7 @@
 import {
   CALL_EVENTS_EXCHANGE,
   CallApprovedEvent,
+  CallCanceledEvent,
   CallRequestedEvent,
   CallStatus,
   RoutingKey,
@@ -11,7 +12,11 @@ import { RabbitMqConnectionService } from '../shared-kernel/rabbitmq/rabbitmq-co
 import { ScheduledCallRepository } from '../state/scheduled-call.repository';
 
 const SCHEDULER_QUEUE = 'scheduler.call-events';
-const BOUND_ROUTING_KEYS = [RoutingKey.CallRequested, RoutingKey.CallApproved];
+const BOUND_ROUTING_KEYS = [
+  RoutingKey.CallRequested,
+  RoutingKey.CallApproved,
+  RoutingKey.CallCanceled,
+];
 const REMINDER_LEAD_TIME_MS = 2 * 60 * 60 * 1000;
 
 @Injectable()
@@ -69,6 +74,9 @@ export class CallEventsConsumer implements OnModuleInit {
       case RoutingKey.CallApproved:
         await this.handleCallApproved(message);
         break;
+      case RoutingKey.CallCanceled:
+        await this.handleCallCanceled(message);
+        break;
       default:
         this.logger.warn(
           `No handler for routing key "${message.fields.routingKey}"; dropping it.`,
@@ -115,5 +123,15 @@ export class CallEventsConsumer implements OnModuleInit {
     );
 
     this.logger.log(`Marked call request ${event.requestId} as scheduled.`);
+  }
+
+  private async handleCallCanceled(message: ConsumeMessage): Promise<void> {
+    const event = JSON.parse(
+      message.content.toString('utf8'),
+    ) as CallCanceledEvent;
+
+    await this.scheduledCallRepository.cancel(event.requestId);
+
+    this.logger.log(`Marked call request ${event.requestId} as canceled.`);
   }
 }

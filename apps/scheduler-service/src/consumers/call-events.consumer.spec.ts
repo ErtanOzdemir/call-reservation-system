@@ -45,7 +45,7 @@ function messageFor(routingKey: string, payload: unknown): FakeMessage {
 }
 
 describe('CallEventsConsumer', () => {
-  it('binds one queue to both call.requested and call.approved', async () => {
+  it('binds one queue to call.requested, call.approved, and call.canceled', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const repository = {
@@ -67,6 +67,11 @@ describe('CallEventsConsumer', () => {
       'scheduler.call-events',
       CALL_EVENTS_EXCHANGE,
       RoutingKey.CallApproved,
+    );
+    expect(channel.bindQueue).toHaveBeenCalledWith(
+      'scheduler.call-events',
+      CALL_EVENTS_EXCHANGE,
+      RoutingKey.CallCanceled,
     );
   });
 
@@ -130,6 +135,26 @@ describe('CallEventsConsumer', () => {
     expect(channel.publish).not.toHaveBeenCalled();
   });
 
+  it('cancels a call and clears its pending reminder on call.canceled', async () => {
+    const channel = createChannelMock();
+    const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
+    const cancel = jest.fn().mockResolvedValue(undefined);
+    const repository = { cancel } as unknown as ScheduledCallRepository;
+    const consumer = new CallEventsConsumer(rabbitMq, repository);
+    await consumer.onModuleInit();
+
+    const message = messageFor(RoutingKey.CallCanceled, {
+      requestId: 'req-1',
+      email: 'customer@example.com',
+      canceledAt: '2026-08-08T09:00:00+03:00',
+    });
+    channel.deliver(message);
+    await flushMicrotasks();
+
+    expect(cancel).toHaveBeenCalledWith('req-1');
+    expect(channel.ack).toHaveBeenCalledWith(message);
+  });
+
   it('acks and drops a message with no matching handler', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
@@ -138,7 +163,7 @@ describe('CallEventsConsumer', () => {
     const consumer = new CallEventsConsumer(rabbitMq, repository);
     await consumer.onModuleInit();
 
-    const message = messageFor('call.canceled', { requestId: 'req-1' });
+    const message = messageFor('unknown.routing.key', { requestId: 'req-1' });
     channel.deliver(message);
     await flushMicrotasks();
 

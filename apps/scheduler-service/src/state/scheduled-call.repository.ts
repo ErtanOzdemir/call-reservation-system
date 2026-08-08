@@ -47,6 +47,18 @@ export class ScheduledCallRepository {
       .exec();
   }
 
+  async cancel(requestId: string): Promise<void> {
+    await this.scheduledCallModel
+      .updateOne(
+        { requestId },
+        {
+          $set: { status: CallStatus.CANCELED },
+          $unset: { pendingReminder: '' },
+        },
+      )
+      .exec();
+  }
+
   async findByRequestId(
     requestId: string,
   ): Promise<ScheduledCallInput | null> {
