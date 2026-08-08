@@ -21,12 +21,28 @@ export class ScheduledCallRepository {
     private readonly scheduledCallModel: Model<ScheduledCallDocument>,
   ) {}
 
-  /** Upsert by requestId — idempotent under RabbitMQ's at-least-once redelivery. */
-  async upsert(record: ScheduledCallInput): Promise<void> {
+  /**
+   * Upsert by requestId — idempotent under RabbitMQ's at-least-once
+   * redelivery.
+   */
+  async upsert(
+    record: ScheduledCallInput,
+    options?: { scheduleReminderAt: Date },
+  ): Promise<void> {
     await this.scheduledCallModel
       .updateOne(
         { requestId: record.requestId },
-        { $set: record },
+        {
+          $set: record,
+          ...(options && {
+            $push: {
+              pendingReminders: {
+                requestId: record.requestId,
+                targetFireAt: options.scheduleReminderAt,
+              },
+            },
+          }),
+        },
         { upsert: true },
       )
       .exec();

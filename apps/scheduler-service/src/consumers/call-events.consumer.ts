@@ -7,17 +7,12 @@ import {
 } from '@call-reservation/shared-types';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConsumeMessage } from 'amqplib';
-import {
-  RabbitMqConnectionService,
-  REMINDER_DELAY_EXCHANGE,
-  REMINDER_WAKEUP_ROUTING_KEY,
-} from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
+import { RabbitMqConnectionService } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
 import { ScheduledCallRepository } from '../state/scheduled-call.repository';
 
 const SCHEDULER_QUEUE = 'scheduler.call-events';
 const BOUND_ROUTING_KEYS = [RoutingKey.CallRequested, RoutingKey.CallApproved];
 const REMINDER_LEAD_TIME_MS = 2 * 60 * 60 * 1000;
-
 
 @Injectable()
 export class CallEventsConsumer implements OnModuleInit {
@@ -92,41 +87,27 @@ export class CallEventsConsumer implements OnModuleInit {
     this.logger.log(`Recorded call request ${event.requestId}.`);
   }
 
+
   private async handleCallApproved(message: ConsumeMessage): Promise<void> {
     const event = JSON.parse(
       message.content.toString('utf8'),
     ) as CallApprovedEvent;
 
     const scheduledAt = new Date(event.scheduledAt);
+    const targetFireAt = new Date(
+      scheduledAt.getTime() - REMINDER_LEAD_TIME_MS,
+    );
 
-    await this.scheduledCallRepository.upsert({
-      requestId: event.requestId,
-      email: event.email,
-      scheduledAt,
-      status: CallStatus.SCHEDULED,
-    });
-
-    this.scheduleReminderWakeup(event.requestId, scheduledAt);
+    await this.scheduledCallRepository.upsert(
+      {
+        requestId: event.requestId,
+        email: event.email,
+        scheduledAt,
+        status: CallStatus.SCHEDULED,
+      },
+      { scheduleReminderAt: targetFireAt },
+    );
 
     this.logger.log(`Marked call request ${event.requestId} as scheduled.`);
-  }
-
-
-  private scheduleReminderWakeup(requestId: string, scheduledAt: Date): void {
-    const delayMs = Math.max(
-      0,
-      scheduledAt.getTime() - REMINDER_LEAD_TIME_MS - Date.now(),
-    );
-
-    this.rabbitMq.channel.publish(
-      REMINDER_DELAY_EXCHANGE,
-      REMINDER_WAKEUP_ROUTING_KEY,
-      Buffer.from(JSON.stringify({ requestId })),
-      { headers: { 'x-delay': delayMs }, persistent: true },
-    );
-
-    this.logger.log(
-      `Scheduled reminder wakeup for ${requestId} in ${delayMs}ms.`,
-    );
   }
 }
