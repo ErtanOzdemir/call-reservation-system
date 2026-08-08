@@ -3,6 +3,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Get,
   NotFoundException,
   Param,
   Patch,
@@ -13,6 +14,7 @@ import { RolesGuard } from '../../../auth/infrastructure/http/guards/roles.guard
 import { Roles } from '../../../auth/infrastructure/http/roles.decorator';
 import { ApproveCallUseCase } from '../../application/approve-call.use-case';
 import { CancelCallUseCase } from '../../application/cancel-call.use-case';
+import { ListCallRequestsUseCase } from '../../application/list-call-requests.use-case';
 import { MarkCalledUseCase } from '../../application/mark-called.use-case';
 import { RejectCallUseCase } from '../../application/reject-call.use-case';
 import { SetCallRequestNotesUseCase } from '../../application/set-call-request-notes.use-case';
@@ -30,7 +32,13 @@ export class AdminCallRequestsController {
     private readonly cancelCall: CancelCallUseCase,
     private readonly markCalled: MarkCalledUseCase,
     private readonly setNotes: SetCallRequestNotesUseCase,
+    private readonly listCallRequests: ListCallRequestsUseCase,
   ) {}
+
+  @Get()
+  async list(): Promise<CallRequestDto[]> {
+    return this.listCallRequests.execute();
+  }
 
   @Patch(':id/approve')
   async approve(@Param('id') id: string): Promise<CallRequestDto> {

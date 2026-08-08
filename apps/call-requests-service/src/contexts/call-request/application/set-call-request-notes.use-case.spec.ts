@@ -36,6 +36,10 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
     this.requests.set(id, saved);
     return saved;
   }
+
+  async findAll(): Promise<CallRequest[]> {
+    throw new Error('not used by SetCallRequestNotesUseCase');
+  }
 }
 
 function seedRequest(repository: InMemoryCallRequestRepository): void {

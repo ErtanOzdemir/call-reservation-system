@@ -97,6 +97,15 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
     return record ? this.toDomain(record) : null;
   }
 
+  async findAll(): Promise<CallRequest[]> {
+    const records = await this.callRequestModel
+      .find()
+      .sort({ scheduledAt: 1 })
+      .exec();
+
+    return records.map((record) => this.toDomain(record));
+  }
+
   async setNotes(id: string, notes: string): Promise<CallRequest | null> {
     const record = await this.callRequestModel
       .findOneAndUpdate({ id }, { $set: { notes } }, { upsert: false, new: true })

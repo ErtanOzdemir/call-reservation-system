@@ -27,6 +27,9 @@ export interface CallRequestRepositoryPort {
   findById(id: string): Promise<CallRequest | null>;
   hasConflictingRequest(scheduledAt: Date): Promise<boolean>;
 
+  /** Every call request, soonest scheduledAt first — for the admin dashboard listing. */
+  findAll(): Promise<CallRequest[]>;
+
   /** Admin free-text annotation — no status precondition, no outbox event. */
   setNotes(id: string, notes: string): Promise<CallRequest | null>;
 }
