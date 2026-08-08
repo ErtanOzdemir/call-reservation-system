@@ -1,3 +1,4 @@
+import { CALL_EVENTS_EXCHANGE } from '@call-reservation/shared-types';
 import {
   Injectable,
   Logger,
@@ -7,7 +8,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Channel, ChannelModel, connect } from 'amqplib';
 
-export const CALL_EVENTS_EXCHANGE = 'call.events';
 export const MAX_PUBLISH_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 200;
 

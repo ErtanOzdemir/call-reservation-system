@@ -1,7 +1,7 @@
+import { CALL_EVENTS_EXCHANGE } from '@call-reservation/shared-types';
 import { ConfigService } from '@nestjs/config';
 import * as amqplib from 'amqplib';
 import {
-  CALL_EVENTS_EXCHANGE,
   MAX_PUBLISH_ATTEMPTS,
   RabbitMqConnectionService,
 } from './rabbitmq-connection.service';
