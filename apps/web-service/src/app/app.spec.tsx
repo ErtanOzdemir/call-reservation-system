@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import App from './app';
-import { configureAuthApi } from '../api/auth-api';
+import { configureApiUrl } from '../api/api-client';
 import { TOKEN_STORAGE_KEY } from '../auth/auth-context';
 
 const fetchMock = jest.fn();
@@ -31,7 +31,7 @@ function renderApp(path = '/') {
 describe('App', () => {
   beforeAll(() => {
     global.fetch = fetchMock;
-    configureAuthApi(testApiUrl);
+    configureApiUrl(testApiUrl);
   });
 
   beforeEach(() => {
@@ -56,6 +56,10 @@ describe('App', () => {
         email: 'person@example.com',
         role: Role.USER,
       }),
+    );
+    fetchMock.mockResolvedValueOnce(jsonResponse([]));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ date: '2026-08-10', availableSlots: [] }),
     );
 
     renderApp('/admin');
@@ -84,6 +88,7 @@ describe('App', () => {
         },
       }),
     );
+    fetchMock.mockResolvedValueOnce(jsonResponse([]));
     renderApp('/login');
 
     fireEvent.change(

@@ -18,6 +18,7 @@ export const TOKEN_STORAGE_KEY = 'call-reservation.access-token';
 
 interface AuthContextValue {
   user: AuthenticatedUserDto | null;
+  token: string | null;
   isLoading: boolean;
   login(payload: LoginPayload): Promise<AuthenticatedUserDto>;
   register(payload: RegisterUserPayload): Promise<AuthenticatedUserDto>;
@@ -32,22 +33,24 @@ export function getRolePath(role: Role): '/admin' | '/user' {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthenticatedUserDto | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+    const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
 
-    if (!token) {
+    if (!storedToken) {
       setIsLoading(false);
       return;
     }
 
     let isActive = true;
     authApi
-      .getCurrentUser(token)
+      .getCurrentUser(storedToken)
       .then((currentUser) => {
         if (isActive) {
           setUser(currentUser);
+          setToken(storedToken);
         }
       })
       .catch(() => {
@@ -67,20 +70,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
+      token,
       isLoading,
       async login(payload) {
         const response = await authApi.login(payload);
         localStorage.setItem(TOKEN_STORAGE_KEY, response.accessToken);
         setUser(response.user);
+        setToken(response.accessToken);
         return response.user;
       },
       register: authApi.register,
       logout() {
         localStorage.removeItem(TOKEN_STORAGE_KEY);
         setUser(null);
+        setToken(null);
       },
     }),
-    [isLoading, user],
+    [isLoading, token, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

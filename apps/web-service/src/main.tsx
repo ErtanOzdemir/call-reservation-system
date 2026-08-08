@@ -2,9 +2,9 @@ import { StrictMode } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import * as ReactDOM from 'react-dom/client';
 import App from './app/app';
-import { configureAuthApi } from './api/auth-api';
+import { configureApiUrl } from './api/api-client';
 
-configureAuthApi(import.meta.env.VITE_CALL_REQUESTS_API_URL);
+configureApiUrl(import.meta.env.VITE_CALL_REQUESTS_API_URL);
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement,
