@@ -60,6 +60,7 @@ describe('CallEventsConsumer', () => {
       RoutingKey.CallRequested,
       RoutingKey.CallApproved,
       RoutingKey.CallRejected,
+      RoutingKey.CallCanceled,
       RoutingKey.ReminderDue,
     ]) {
       expect(channel.bindQueue).toHaveBeenCalledWith(
@@ -134,6 +135,26 @@ describe('CallEventsConsumer', () => {
     expect(channel.ack).toHaveBeenCalledWith(message);
   });
 
+  it('emails the requester on call.canceled', async () => {
+    const channel = createChannelMock();
+    const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
+    const consumer = new CallEventsConsumer(rabbitMq);
+    await consumer.onModuleInit();
+
+    const message = messageFor(RoutingKey.CallCanceled, {
+      requestId: 'req-1',
+      email: 'customer@example.com',
+      canceledAt: '2026-08-08T09:00:00+03:00',
+    });
+    channel.deliver(message);
+    await flushMicrotasks();
+
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect.stringContaining('canceled by the admin'),
+    );
+    expect(channel.ack).toHaveBeenCalledWith(message);
+  });
+
   it('emails both the customer and the admin on reminder.due', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
@@ -165,7 +186,7 @@ describe('CallEventsConsumer', () => {
     const consumer = new CallEventsConsumer(rabbitMq);
     await consumer.onModuleInit();
 
-    const message = messageFor('call.canceled', { requestId: 'req-1' });
+    const message = messageFor('unknown.routing.key', { requestId: 'req-1' });
     channel.deliver(message);
     await flushMicrotasks();
 

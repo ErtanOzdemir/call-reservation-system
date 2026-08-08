@@ -1,6 +1,7 @@
 import {
   CALL_EVENTS_EXCHANGE,
   CallApprovedEvent,
+  CallCanceledEvent,
   CallRejectedEvent,
   CallRequestedEvent,
   ReminderDueEvent,
@@ -10,6 +11,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConsumeMessage } from 'amqplib';
 import { RabbitMqConnectionService } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
 import { renderCallApprovedEmail } from '../templates/call-approved.template';
+import { renderCallCanceledEmail } from '../templates/call-canceled.template';
 import { renderCallRejectedEmail } from '../templates/call-rejected.template';
 import {
   EmailMessage,
@@ -22,6 +24,7 @@ const BOUND_ROUTING_KEYS = [
   RoutingKey.CallRequested,
   RoutingKey.CallApproved,
   RoutingKey.CallRejected,
+  RoutingKey.CallCanceled,
   RoutingKey.ReminderDue,
 ];
 
@@ -80,6 +83,9 @@ export class CallEventsConsumer implements OnModuleInit {
         break;
       case RoutingKey.CallRejected:
         this.send(renderCallRejectedEmail(payload as CallRejectedEvent));
+        break;
+      case RoutingKey.CallCanceled:
+        this.send(renderCallCanceledEmail(payload as CallCanceledEvent));
         break;
       case RoutingKey.ReminderDue:
         for (const email of renderReminderEmails(payload as ReminderDueEvent)) {
