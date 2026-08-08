@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { RabbitMqModule } from '../shared-kernel/rabbitmq/rabbitmq.module';
-import { CallRequestedConsumer } from './call-requested.consumer';
+import { CallEventsConsumer } from './call-events.consumer';
 
 @Module({
   imports: [RabbitMqModule],
-  providers: [CallRequestedConsumer],
+  providers: [CallEventsConsumer],
 })
 export class ConsumersModule {}
