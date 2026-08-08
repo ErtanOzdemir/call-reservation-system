@@ -13,14 +13,15 @@ export interface CallRequestRepositoryPort {
    * `expectedCurrentStatus` when the write happens — returns null if it
    * isn't (someone else already approved/rejected/... it between this
    * call's read and write). Every status-changing use-case (approve,
-   * reject, and any future one — cancel, mark-called) goes through this,
-   * not `create`, so the same-request race is closed once here rather
-   * than needing to be remembered per use-case.
+   * reject, cancel, mark-called) goes through this, not `create`, so the
+   * same-request race is closed once here rather than needing to be
+   * remembered per use-case. `event` is omitted when the transition (e.g.
+   * mark-called) has nothing to publish.
    */
   transition(
     callRequest: CallRequest,
     expectedCurrentStatus: CallStatus,
-    event: OutboxEvent,
+    event?: OutboxEvent,
   ): Promise<CallRequest | null>;
 
   findById(id: string): Promise<CallRequest | null>;

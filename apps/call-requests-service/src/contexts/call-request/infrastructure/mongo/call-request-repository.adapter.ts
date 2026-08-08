@@ -60,7 +60,7 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
   async transition(
     callRequest: CallRequest,
     expectedCurrentStatus: CallStatus,
-    event: OutboxEvent,
+    event?: OutboxEvent,
   ): Promise<CallRequest | null> {
     const record = await this.callRequestModel
       .findOneAndUpdate(
@@ -73,13 +73,15 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
             status: callRequest.status,
             requestedByUserId: callRequest.requestedByUserId,
           },
-          $push: {
-            pendingEvents: {
-              routingKey: event.routingKey,
-              payload: event.payload,
-              occurredAt: new Date(),
+          ...(event && {
+            $push: {
+              pendingEvents: {
+                routingKey: event.routingKey,
+                payload: event.payload,
+                occurredAt: new Date(),
+              },
             },
-          },
+          }),
         },
         { upsert: false, new: true },
       )

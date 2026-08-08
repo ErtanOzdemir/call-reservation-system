@@ -11,6 +11,8 @@ import { JwtAuthGuard } from '../../../auth/infrastructure/http/guards/jwt-auth.
 import { RolesGuard } from '../../../auth/infrastructure/http/guards/roles.guard';
 import { Roles } from '../../../auth/infrastructure/http/roles.decorator';
 import { ApproveCallUseCase } from '../../application/approve-call.use-case';
+import { CancelCallUseCase } from '../../application/cancel-call.use-case';
+import { MarkCalledUseCase } from '../../application/mark-called.use-case';
 import { RejectCallUseCase } from '../../application/reject-call.use-case';
 import { CallRequestNotFoundError } from '../../domain/errors/call-request-not-found.error';
 import { InvalidStateTransitionError } from '../../domain/errors/invalid-state-transition.error';
@@ -22,6 +24,8 @@ export class AdminCallRequestsController {
   constructor(
     private readonly approveCall: ApproveCallUseCase,
     private readonly rejectCall: RejectCallUseCase,
+    private readonly cancelCall: CancelCallUseCase,
+    private readonly markCalled: MarkCalledUseCase,
   ) {}
 
   @Patch(':id/approve')
@@ -32,6 +36,16 @@ export class AdminCallRequestsController {
   @Patch(':id/reject')
   async reject(@Param('id') id: string): Promise<CallRequestDto> {
     return this.handle(() => this.rejectCall.execute(id));
+  }
+
+  @Patch(':id/cancel')
+  async cancel(@Param('id') id: string): Promise<CallRequestDto> {
+    return this.handle(() => this.cancelCall.execute(id));
+  }
+
+  @Patch(':id/called')
+  async called(@Param('id') id: string): Promise<CallRequestDto> {
+    return this.handle(() => this.markCalled.execute(id));
   }
 
   private async handle(
