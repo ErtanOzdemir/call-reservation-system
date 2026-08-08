@@ -3,9 +3,23 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CallRequest } from '../../domain/entities/call-request.entity';
+import { SlotUnavailableError } from '../../domain/errors/slot-unavailable.error';
 import { OutboxEvent } from '../../domain/outbox-event';
 import { CallRequestRepositoryPort } from '../../domain/ports/call-request-repository.port';
 import { CallRequestDocument, CallRequestRecord } from './call-request.schema';
+
+/** MongoDB's "duplicate key" error code — thrown when a unique index (here,
+ * the partial index on scheduledAt) rejects the write. */
+const MONGO_DUPLICATE_KEY_ERROR_CODE = 11000;
+
+function isDuplicateKeyError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code: unknown }).code === MONGO_DUPLICATE_KEY_ERROR_CODE
+  );
+}
 
 @Injectable()
 export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
@@ -35,27 +49,42 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
     return record ? this.toDomain(record) : null;
   }
 
+  /**
+   * The `hasConflictingRequest` pre-check narrows the odds but can't close
+   * the race on its own (two concurrent reserves can both pass it before
+   * either write lands) — the partial unique index on scheduledAt is the
+   * actual guard, and a duplicate-key error here means the other request
+   * won that race.
+   */
   async create(
     callRequest: CallRequest,
     event: OutboxEvent,
   ): Promise<CallRequest> {
-    const record = await this.callRequestModel.create({
-      id: callRequest.id,
-      email: callRequest.email,
-      phoneNumber: callRequest.phoneNumber,
-      scheduledAt: callRequest.scheduledAt,
-      status: callRequest.status,
-      requestedByUserId: callRequest.requestedByUserId,
-      pendingEvents: [
-        {
-          routingKey: event.routingKey,
-          payload: event.payload,
-          occurredAt: new Date(),
-        },
-      ],
-    });
+    try {
+      const record = await this.callRequestModel.create({
+        id: callRequest.id,
+        email: callRequest.email,
+        phoneNumber: callRequest.phoneNumber,
+        scheduledAt: callRequest.scheduledAt,
+        status: callRequest.status,
+        requestedByUserId: callRequest.requestedByUserId,
+        pendingEvents: [
+          {
+            routingKey: event.routingKey,
+            payload: event.payload,
+            occurredAt: new Date(),
+          },
+        ],
+      });
 
-    return this.toDomain(record);
+      return this.toDomain(record);
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        throw new SlotUnavailableError();
+      }
+
+      throw error;
+    }
   }
 
   /**

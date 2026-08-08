@@ -53,3 +53,15 @@ export class CallRequestRecord {
 export type CallRequestDocument = HydratedDocument<CallRequestRecord>;
 export const CallRequestSchema =
   SchemaFactory.createForClass(CallRequestRecord);
+
+
+CallRequestSchema.index(
+  { scheduledAt: 1 },
+  {
+    name: 'unique_active_scheduled_at',
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: [CallStatus.REQUESTED, CallStatus.SCHEDULED] },
+    },
+  },
+);
