@@ -8,6 +8,8 @@ import { ConfigService } from '@nestjs/config';
 import { Channel, ChannelModel, connect } from 'amqplib';
 
 export const CALL_EVENTS_EXCHANGE = 'call.events';
+export const MAX_PUBLISH_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 200;
 
 @Injectable()
 export class RabbitMqConnectionService
@@ -31,21 +33,46 @@ export class RabbitMqConnectionService
     );
   }
 
-  publish(routingKey: string, payload: Record<string, unknown>): void {
+  async publish(
+    routingKey: string,
+    payload: Record<string, unknown>,
+    attempt = 1,
+  ): Promise<void> {
     if (!this.channel) {
       throw new Error('RabbitMQ channel is not initialized.');
     }
 
-    this.channel.publish(
-      CALL_EVENTS_EXCHANGE,
-      routingKey,
-      Buffer.from(JSON.stringify(payload)),
-      { contentType: 'application/json', persistent: true },
-    );
+    try {
+      this.channel.publish(
+        CALL_EVENTS_EXCHANGE,
+        routingKey,
+        Buffer.from(JSON.stringify(payload)),
+        { contentType: 'application/json', persistent: true },
+      );
+    } catch (error) {
+      if (attempt >= MAX_PUBLISH_ATTEMPTS) {
+        this.logger.error(
+          `Failed to publish "${routingKey}" after ${attempt} attempts.`,
+          error,
+        );
+        throw error;
+      }
+
+      this.logger.warn(
+        `Publish attempt ${attempt} for "${routingKey}" failed, retrying...`,
+        error,
+      );
+      await this.delay(RETRY_BASE_DELAY_MS * attempt);
+      await this.publish(routingKey, payload, attempt + 1);
+    }
   }
 
   async onModuleDestroy(): Promise<void> {
     await this.channel?.close();
     await this.connection?.close();
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

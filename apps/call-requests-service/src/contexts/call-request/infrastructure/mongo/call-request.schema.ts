@@ -1,9 +1,12 @@
 import { CallStatus } from '@call-reservation/shared-types';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
-@Schema({ _id: false })
+@Schema()
 export class OutboxEventRecord {
+  /** Own id so the dispatcher can $pull exactly this event once delivered. */
+  _id?: Types.ObjectId;
+
   @Prop({ required: true })
   routingKey!: string;
 

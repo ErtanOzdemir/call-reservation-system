@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import * as amqplib from 'amqplib';
 import {
   CALL_EVENTS_EXCHANGE,
+  MAX_PUBLISH_ATTEMPTS,
   RabbitMqConnectionService,
 } from './rabbitmq-connection.service';
 
@@ -10,7 +11,7 @@ jest.mock('amqplib');
 describe('RabbitMqConnectionService', () => {
   const channel = {
     assertExchange: jest.fn(),
-    publish: jest.fn(),
+    publish: jest.fn().mockReturnValue(true),
     close: jest.fn(),
   };
   const connection = {
@@ -25,6 +26,7 @@ describe('RabbitMqConnectionService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    channel.publish.mockReturnValue(true);
     (amqplib.connect as jest.Mock).mockResolvedValue(connection);
   });
 
@@ -46,7 +48,7 @@ describe('RabbitMqConnectionService', () => {
     const service = new RabbitMqConnectionService(configService);
     await service.onModuleInit();
 
-    service.publish('call.requested', { requestId: 'abc' });
+    await service.publish('call.requested', { requestId: 'abc' });
 
     expect(channel.publish).toHaveBeenCalledWith(
       CALL_EVENTS_EXCHANGE,
@@ -56,10 +58,37 @@ describe('RabbitMqConnectionService', () => {
     );
   });
 
-  it('throws if publish is called before the channel is initialized', () => {
+  it('retries a failed publish and succeeds on a later attempt', async () => {
+    const service = new RabbitMqConnectionService(configService);
+    await service.onModuleInit();
+    channel.publish
+      .mockImplementationOnce(() => {
+        throw new Error('channel closed');
+      })
+      .mockImplementationOnce(() => true);
+
+    await service.publish('call.requested', { requestId: 'abc' });
+
+    expect(channel.publish).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives up and throws after exhausting all retry attempts', async () => {
+    const service = new RabbitMqConnectionService(configService);
+    await service.onModuleInit();
+    channel.publish.mockImplementation(() => {
+      throw new Error('channel closed');
+    });
+
+    await expect(
+      service.publish('call.requested', { requestId: 'abc' }),
+    ).rejects.toThrow('channel closed');
+    expect(channel.publish).toHaveBeenCalledTimes(MAX_PUBLISH_ATTEMPTS);
+  });
+
+  it('throws if publish is called before the channel is initialized', async () => {
     const service = new RabbitMqConnectionService(configService);
 
-    expect(() => service.publish('call.requested', {})).toThrow(
+    await expect(service.publish('call.requested', {})).rejects.toThrow(
       'RabbitMQ channel is not initialized.',
     );
   });
