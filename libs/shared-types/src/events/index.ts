@@ -1,2 +1,1 @@
-// RabbitMQ event payload contracts go here.
-export {};
+export * from './call-request';
