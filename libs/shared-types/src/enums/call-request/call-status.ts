@@ -1,0 +1,7 @@
+export enum CallStatus {
+  REQUESTED = 'REQUESTED',
+  SCHEDULED = 'SCHEDULED',
+  REJECTED = 'REJECTED',
+  CALLED = 'CALLED',
+  CANCELED = 'CANCELED',
+}
