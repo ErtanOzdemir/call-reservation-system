@@ -47,7 +47,8 @@ services:
       - backend
 
   rabbitmq:
-    image: rabbitmq:4.3.4-management-alpine
+    build:
+      context: ./rabbitmq
     hostname: rabbitmq
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
