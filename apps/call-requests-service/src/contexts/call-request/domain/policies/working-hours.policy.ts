@@ -1,7 +1,7 @@
 import { DateTime } from 'luxon';
 import { InvalidReservationTimeError } from '../errors/invalid-reservation-time.error';
 
-const ISTANBUL_TIME_ZONE = 'Europe/Istanbul';
+export const ISTANBUL_TIME_ZONE = 'Europe/Istanbul';
 const WORKING_START_MINUTES = 10 * 60;
 const WORKING_END_MINUTES = 18 * 60;
 const CALL_DURATION_MINUTES = 30;
@@ -43,6 +43,34 @@ export class WorkingHoursPolicy {
         'Calls must be scheduled between 10:00 and 18:00 Istanbul time, Monday through Friday.',
       );
     }
+  }
+
+  /**
+   * All bookable 30-minute slot start times for one Istanbul-local day — []
+   * for weekends and for any day that isn't strictly in the future, per the
+   * same rules `assertBookable` enforces for a single slot.
+   */
+  static enumerateSlotsForDay(dayStart: DateTime, now: Date): DateTime[] {
+    const zonedNow = DateTime.fromJSDate(now, { zone: ISTANBUL_TIME_ZONE });
+
+    if (
+      !this.isFutureDate(dayStart, zonedNow) ||
+      dayStart.weekday > LAST_ISO_WEEKDAY_FOR_WORK
+    ) {
+      return [];
+    }
+
+    const slots: DateTime[] = [];
+
+    for (
+      let minutes = WORKING_START_MINUTES;
+      minutes + CALL_DURATION_MINUTES <= WORKING_END_MINUTES;
+      minutes += CALL_DURATION_MINUTES
+    ) {
+      slots.push(dayStart.plus({ minutes }));
+    }
+
+    return slots;
   }
 
   private static isFutureDate(scheduledAt: DateTime, now: DateTime): boolean {

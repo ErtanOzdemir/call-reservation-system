@@ -1,5 +1,6 @@
+import { DateTime } from 'luxon';
 import { InvalidReservationTimeError } from '../errors/invalid-reservation-time.error';
-import { WorkingHoursPolicy } from './working-hours.policy';
+import { ISTANBUL_TIME_ZONE, WorkingHoursPolicy } from './working-hours.policy';
 
 // 2026-08-03 is a Monday, 2026-08-04 a Tuesday, 2026-08-08/09 a Sat/Sun in Istanbul (UTC+3).
 const NOW = new Date('2026-08-03T09:00:00+03:00');
@@ -90,5 +91,49 @@ describe('WorkingHoursPolicy', () => {
     expect(() =>
       WorkingHoursPolicy.assertBookable(new Date('not-a-date'), NOW),
     ).toThrow(InvalidReservationTimeError);
+  });
+
+  describe('enumerateSlotsForDay', () => {
+    it('lists all sixteen 30-minute slots for a future weekday', () => {
+      const tuesday = DateTime.fromISO('2026-08-04', {
+        zone: ISTANBUL_TIME_ZONE,
+      });
+
+      const slots = WorkingHoursPolicy.enumerateSlotsForDay(tuesday, NOW);
+
+      expect(slots).toHaveLength(16);
+      expect(slots[0].toISO()).toBe('2026-08-04T10:00:00.000+03:00');
+      expect(slots[slots.length - 1].toISO()).toBe(
+        '2026-08-04T17:30:00.000+03:00',
+      );
+    });
+
+    it('returns no slots for a Saturday', () => {
+      const saturday = DateTime.fromISO('2026-08-08', {
+        zone: ISTANBUL_TIME_ZONE,
+      });
+
+      expect(WorkingHoursPolicy.enumerateSlotsForDay(saturday, NOW)).toEqual(
+        [],
+      );
+    });
+
+    it('returns no slots for today (same-day bookings are blocked)', () => {
+      const today = DateTime.fromISO('2026-08-03', {
+        zone: ISTANBUL_TIME_ZONE,
+      });
+
+      expect(WorkingHoursPolicy.enumerateSlotsForDay(today, NOW)).toEqual([]);
+    });
+
+    it('returns no slots for a past weekday', () => {
+      const lastMonday = DateTime.fromISO('2026-07-27', {
+        zone: ISTANBUL_TIME_ZONE,
+      });
+
+      expect(
+        WorkingHoursPolicy.enumerateSlotsForDay(lastMonday, NOW),
+      ).toEqual([]);
+    });
   });
 });

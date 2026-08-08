@@ -14,9 +14,16 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
     private readonly callRequestModel: Model<CallRequestDocument>,
   ) {}
 
+  /**
+   * Only REQUESTED/SCHEDULED requests actually hold the slot — a
+   * REJECTED/CANCELED one must free it back up for re-booking.
+   */
   async hasConflictingRequest(scheduledAt: Date): Promise<boolean> {
     const existingRequest = await this.callRequestModel
-      .exists({ scheduledAt })
+      .exists({
+        scheduledAt,
+        status: { $in: [CallStatus.REQUESTED, CallStatus.SCHEDULED] },
+      })
       .exec();
 
     return existingRequest !== null;
