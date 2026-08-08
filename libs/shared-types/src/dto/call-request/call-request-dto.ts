@@ -9,6 +9,7 @@ export interface CallRequestDto {
   durationMinutes: 30;
   status: CallStatus;
   requestedByUserId: string;
+  notes?: string;
   /** ISO 8601 timestamp with an explicit UTC offset. */
   createdAt: string;
 }

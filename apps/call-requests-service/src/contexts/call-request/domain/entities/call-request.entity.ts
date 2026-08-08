@@ -7,6 +7,7 @@ export interface CallRequestProps {
   scheduledAt: Date;
   status: CallStatus;
   requestedByUserId: string;
+  notes?: string;
   createdAt?: Date;
 }
 
@@ -18,6 +19,7 @@ export class CallRequest {
   readonly durationMinutes = 30 as const;
   readonly status: CallStatus;
   readonly requestedByUserId: string;
+  readonly notes?: string;
   readonly createdAt?: Date;
 
   constructor(props: CallRequestProps) {
@@ -27,10 +29,15 @@ export class CallRequest {
     this.scheduledAt = props.scheduledAt;
     this.status = props.status;
     this.requestedByUserId = props.requestedByUserId;
+    this.notes = props.notes;
     this.createdAt = props.createdAt;
   }
 
   withStatus(status: CallStatus): CallRequest {
     return new CallRequest({ ...this, status });
+  }
+
+  withNotes(notes: string): CallRequest {
+    return new CallRequest({ ...this, notes });
   }
 }

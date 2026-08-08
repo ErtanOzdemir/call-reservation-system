@@ -6,6 +6,7 @@ import { CancelCallUseCase } from './application/cancel-call.use-case';
 import { MarkCalledUseCase } from './application/mark-called.use-case';
 import { RejectCallUseCase } from './application/reject-call.use-case';
 import { ReserveCallUseCase } from './application/reserve-call.use-case';
+import { SetCallRequestNotesUseCase } from './application/set-call-request-notes.use-case';
 import { CALL_REQUEST_REPOSITORY } from './domain/ports/call-request-repository.port';
 import { AdminCallRequestsController } from './infrastructure/http/admin-call-requests.controller';
 import { CallRequestsController } from './infrastructure/http/call-requests.controller';
@@ -30,6 +31,7 @@ import { OutboxDispatcherService } from './infrastructure/outbox/outbox-dispatch
     RejectCallUseCase,
     CancelCallUseCase,
     MarkCalledUseCase,
+    SetCallRequestNotesUseCase,
     CallRequestRepositoryAdapter,
     OutboxDispatcherService,
     {

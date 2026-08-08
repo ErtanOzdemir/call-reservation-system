@@ -1,5 +1,6 @@
 import { CallRequestDto, Role } from '@call-reservation/shared-types';
 import {
+  Body,
   ConflictException,
   Controller,
   NotFoundException,
@@ -14,8 +15,10 @@ import { ApproveCallUseCase } from '../../application/approve-call.use-case';
 import { CancelCallUseCase } from '../../application/cancel-call.use-case';
 import { MarkCalledUseCase } from '../../application/mark-called.use-case';
 import { RejectCallUseCase } from '../../application/reject-call.use-case';
+import { SetCallRequestNotesUseCase } from '../../application/set-call-request-notes.use-case';
 import { CallRequestNotFoundError } from '../../domain/errors/call-request-not-found.error';
 import { InvalidStateTransitionError } from '../../domain/errors/invalid-state-transition.error';
+import { UpdateCallRequestNotesDto } from './dto/update-call-request-notes.dto';
 
 @Controller('admin/call-requests')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -26,6 +29,7 @@ export class AdminCallRequestsController {
     private readonly rejectCall: RejectCallUseCase,
     private readonly cancelCall: CancelCallUseCase,
     private readonly markCalled: MarkCalledUseCase,
+    private readonly setNotes: SetCallRequestNotesUseCase,
   ) {}
 
   @Patch(':id/approve')
@@ -46,6 +50,14 @@ export class AdminCallRequestsController {
   @Patch(':id/called')
   async called(@Param('id') id: string): Promise<CallRequestDto> {
     return this.handle(() => this.markCalled.execute(id));
+  }
+
+  @Patch(':id/notes')
+  async updateNotes(
+    @Param('id') id: string,
+    @Body() body: UpdateCallRequestNotesDto,
+  ): Promise<CallRequestDto> {
+    return this.handle(() => this.setNotes.execute(id, body.notes));
   }
 
   private async handle(

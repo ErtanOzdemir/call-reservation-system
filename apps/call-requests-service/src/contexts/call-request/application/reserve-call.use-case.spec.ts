@@ -47,6 +47,10 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
   async transition(): Promise<CallRequest | null> {
     throw new Error('not used by ReserveCallUseCase');
   }
+
+  async setNotes(): Promise<CallRequest | null> {
+    throw new Error('not used by ReserveCallUseCase');
+  }
 }
 
 describe('ReserveCallUseCase', () => {

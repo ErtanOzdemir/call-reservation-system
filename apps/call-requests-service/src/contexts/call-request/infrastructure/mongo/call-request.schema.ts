@@ -40,6 +40,9 @@ export class CallRequestRecord {
   @Prop({ required: true })
   requestedByUserId!: string;
 
+  @Prop({ required: false, trim: true })
+  notes?: string;
+
   /** Events awaiting delivery to RabbitMQ — written atomically with the rest of this document. */
   @Prop({ type: [OutboxEventSchema], default: [] })
   pendingEvents!: OutboxEventRecord[];

@@ -16,6 +16,7 @@ export function toCallRequestDto(callRequest: CallRequest): CallRequestDto {
     durationMinutes: callRequest.durationMinutes,
     status: callRequest.status,
     requestedByUserId: callRequest.requestedByUserId,
+    notes: callRequest.notes,
     createdAt: callRequest.createdAt.toISOString(),
   };
 }

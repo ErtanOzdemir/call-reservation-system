@@ -45,6 +45,10 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
     this.events.push(event);
     return saved;
   }
+
+  async setNotes(): Promise<CallRequest | null> {
+    throw new Error('not used by ApproveCallUseCase');
+  }
 }
 
 function seedRequest(

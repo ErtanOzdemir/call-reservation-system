@@ -90,6 +90,14 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
     return record ? this.toDomain(record) : null;
   }
 
+  async setNotes(id: string, notes: string): Promise<CallRequest | null> {
+    const record = await this.callRequestModel
+      .findOneAndUpdate({ id }, { $set: { notes } }, { upsert: false, new: true })
+      .exec();
+
+    return record ? this.toDomain(record) : null;
+  }
+
   private toDomain(record: CallRequestDocument): CallRequest {
     return new CallRequest({
       id: record.id,
@@ -98,6 +106,7 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
       scheduledAt: record.scheduledAt,
       status: record.status,
       requestedByUserId: record.requestedByUserId,
+      notes: record.notes,
       createdAt: record.createdAt,
     });
   }
