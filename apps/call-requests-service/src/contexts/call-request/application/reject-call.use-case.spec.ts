@@ -53,6 +53,10 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
   async findAll(): Promise<CallRequest[]> {
     throw new Error('not used by RejectCallUseCase');
   }
+
+  async findByRequestedByUserId(): Promise<CallRequest[]> {
+    throw new Error('not used by RejectCallUseCase');
+  }
 }
 
 function seedRequest(

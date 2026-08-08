@@ -30,6 +30,9 @@ export interface CallRequestRepositoryPort {
   /** Every call request, soonest scheduledAt first — for the admin dashboard listing. */
   findAll(): Promise<CallRequest[]>;
 
+  /** One requester's own call requests, soonest scheduledAt first. */
+  findByRequestedByUserId(requestedByUserId: string): Promise<CallRequest[]>;
+
   /** Admin free-text annotation — no status precondition, no outbox event. */
   setNotes(id: string, notes: string): Promise<CallRequest | null>;
 }

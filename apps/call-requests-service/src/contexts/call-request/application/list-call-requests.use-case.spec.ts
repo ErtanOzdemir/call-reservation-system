@@ -28,6 +28,10 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
     throw new Error('not used by ListCallRequestsUseCase');
   }
 
+  async findByRequestedByUserId(): Promise<CallRequest[]> {
+    throw new Error('not used by ListCallRequestsUseCase');
+  }
+
   async findAll(): Promise<CallRequest[]> {
     return this.requests;
   }

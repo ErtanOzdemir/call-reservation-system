@@ -4,6 +4,7 @@ import { RabbitMqModule } from '../../shared-kernel/rabbitmq/rabbitmq.module';
 import { ApproveCallUseCase } from './application/approve-call.use-case';
 import { CancelCallUseCase } from './application/cancel-call.use-case';
 import { ListCallRequestsUseCase } from './application/list-call-requests.use-case';
+import { ListMyCallRequestsUseCase } from './application/list-my-call-requests.use-case';
 import { MarkCalledUseCase } from './application/mark-called.use-case';
 import { RejectCallUseCase } from './application/reject-call.use-case';
 import { ReserveCallUseCase } from './application/reserve-call.use-case';
@@ -34,6 +35,7 @@ import { OutboxDispatcherService } from './infrastructure/outbox/outbox-dispatch
     MarkCalledUseCase,
     SetCallRequestNotesUseCase,
     ListCallRequestsUseCase,
+    ListMyCallRequestsUseCase,
     CallRequestRepositoryAdapter,
     OutboxDispatcherService,
     {
