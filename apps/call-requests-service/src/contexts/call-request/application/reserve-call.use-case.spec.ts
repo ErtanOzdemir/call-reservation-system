@@ -21,6 +21,10 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
   saved: { callRequest: CallRequest; event: OutboxEvent }[] = [];
   conflictingSlot: Date | null = null;
 
+  async findById(): Promise<CallRequest | null> {
+    return null;
+  }
+
   async hasConflictingRequest(scheduledAt: Date): Promise<boolean> {
     return (
       this.conflictingSlot !== null &&

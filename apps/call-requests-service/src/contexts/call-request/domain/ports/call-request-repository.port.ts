@@ -5,5 +5,6 @@ export const CALL_REQUEST_REPOSITORY = Symbol('CALL_REQUEST_REPOSITORY');
 
 export interface CallRequestRepositoryPort {
   save(callRequest: CallRequest, event: OutboxEvent): Promise<CallRequest>;
+  findById(id: string): Promise<CallRequest | null>;
   hasConflictingRequest(scheduledAt: Date): Promise<boolean>;
 }

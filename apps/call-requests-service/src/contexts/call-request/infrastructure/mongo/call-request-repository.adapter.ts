@@ -21,25 +21,38 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
     return existingRequest !== null;
   }
 
+  async findById(id: string): Promise<CallRequest | null> {
+    const record = await this.callRequestModel.findOne({ id }).exec();
+
+    return record ? this.toDomain(record) : null;
+  }
+
   async save(
     callRequest: CallRequest,
     event: OutboxEvent,
   ): Promise<CallRequest> {
-    const record = await this.callRequestModel.create({
-      id: callRequest.id,
-      email: callRequest.email,
-      phoneNumber: callRequest.phoneNumber,
-      scheduledAt: callRequest.scheduledAt,
-      status: callRequest.status,
-      requestedByUserId: callRequest.requestedByUserId,
-      pendingEvents: [
+    const record = await this.callRequestModel
+      .findOneAndUpdate(
+        { id: callRequest.id },
         {
-          routingKey: event.routingKey,
-          payload: event.payload,
-          occurredAt: new Date(),
+          $set: {
+            email: callRequest.email,
+            phoneNumber: callRequest.phoneNumber,
+            scheduledAt: callRequest.scheduledAt,
+            status: callRequest.status,
+            requestedByUserId: callRequest.requestedByUserId,
+          },
+          $push: {
+            pendingEvents: {
+              routingKey: event.routingKey,
+              payload: event.payload,
+              occurredAt: new Date(),
+            },
+          },
         },
-      ],
-    });
+        { upsert: true, new: true },
+      )
+      .exec();
 
     return this.toDomain(record);
   }

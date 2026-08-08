@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { RabbitMqModule } from '../../shared-kernel/rabbitmq/rabbitmq.module';
+import { ApproveCallUseCase } from './application/approve-call.use-case';
+import { RejectCallUseCase } from './application/reject-call.use-case';
 import { ReserveCallUseCase } from './application/reserve-call.use-case';
 import { CALL_REQUEST_REPOSITORY } from './domain/ports/call-request-repository.port';
+import { AdminCallRequestsController } from './infrastructure/http/admin-call-requests.controller';
 import { CallRequestsController } from './infrastructure/http/call-requests.controller';
 import { CallRequestRepositoryAdapter } from './infrastructure/mongo/call-request-repository.adapter';
 import {
@@ -18,9 +21,11 @@ import { OutboxDispatcherService } from './infrastructure/outbox/outbox-dispatch
       { name: CallRequestRecord.name, schema: CallRequestSchema },
     ]),
   ],
-  controllers: [CallRequestsController],
+  controllers: [CallRequestsController, AdminCallRequestsController],
   providers: [
     ReserveCallUseCase,
+    ApproveCallUseCase,
+    RejectCallUseCase,
     CallRequestRepositoryAdapter,
     OutboxDispatcherService,
     {

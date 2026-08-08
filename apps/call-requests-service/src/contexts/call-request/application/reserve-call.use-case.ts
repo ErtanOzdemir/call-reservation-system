@@ -14,6 +14,7 @@ import {
   CALL_REQUEST_REPOSITORY,
   CallRequestRepositoryPort,
 } from '../domain/ports/call-request-repository.port';
+import { toCallRequestDto } from './to-call-request-dto';
 
 @Injectable()
 export class ReserveCallUseCase {
@@ -59,21 +60,6 @@ export class ReserveCallUseCase {
       { routingKey: RoutingKey.CallRequested, payload: { ...event } },
     );
 
-    if (!savedCallRequest.id || !savedCallRequest.createdAt) {
-      throw new Error(
-        'The persisted call request is missing required fields.',
-      );
-    }
-
-    return {
-      id: savedCallRequest.id,
-      email: savedCallRequest.email,
-      phoneNumber: savedCallRequest.phoneNumber,
-      scheduledAt: savedCallRequest.scheduledAt.toISOString(),
-      durationMinutes: savedCallRequest.durationMinutes,
-      status: savedCallRequest.status,
-      requestedByUserId: savedCallRequest.requestedByUserId,
-      createdAt: savedCallRequest.createdAt.toISOString(),
-    };
+    return toCallRequestDto(savedCallRequest);
   }
 }

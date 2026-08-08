@@ -29,4 +29,8 @@ export class CallRequest {
     this.requestedByUserId = props.requestedByUserId;
     this.createdAt = props.createdAt;
   }
+
+  withStatus(status: CallStatus): CallRequest {
+    return new CallRequest({ ...this, status });
+  }
 }
