@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import configuration from '../config/configuration';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { ConsumersModule } from '../consumers/consumers.module';
+import { RabbitMqModule } from '../shared-kernel/rabbitmq/rabbitmq.module';
 
 @Module({
   imports: [
@@ -12,8 +12,8 @@ import { AppService } from './app.service';
       isGlobal: true,
       load: [configuration],
     }),
+    RabbitMqModule,
+    ConsumersModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}
