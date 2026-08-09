@@ -1,10 +1,10 @@
-import { CallRequestDto } from '@call-reservation/shared-types';
+import { CallRequestResponse } from '@call-reservation/shared-types';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   CALL_REQUEST_REPOSITORY,
   CallRequestRepositoryPort,
 } from '../domain/ports/call-request-repository.port';
-import { toCallRequestDto } from './to-call-request-dto';
+import { toCallRequestResponse } from './to-call-request-response';
 
 @Injectable()
 export class ListMyCallRequestsUseCase {
@@ -13,15 +13,15 @@ export class ListMyCallRequestsUseCase {
     private readonly callRequestRepository: CallRequestRepositoryPort,
   ) {}
 
-  async execute(requestedByUserId: string): Promise<CallRequestDto[]> {
+  async execute(requestedByUserId: string): Promise<CallRequestResponse[]> {
     const callRequests =
       await this.callRequestRepository.findByRequestedByUserId(requestedByUserId);
 
-    // Notes are internal admin annotations — never expose them to the requester.
+
     return callRequests.map((callRequest) => {
-      const dto = toCallRequestDto(callRequest);
-      delete dto.notes;
-      return dto;
+      const response = toCallRequestResponse(callRequest);
+      delete response.notes;
+      return response;
     });
   }
 }

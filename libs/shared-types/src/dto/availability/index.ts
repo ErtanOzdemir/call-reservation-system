@@ -1,1 +1,1 @@
-export * from './availability-dto';
+export * from './availability-response';

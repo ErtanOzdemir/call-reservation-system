@@ -1,5 +1,5 @@
 import {
-  AuthenticatedUserDto,
+  AuthenticatedUser,
   LoginPayload,
   LoginResponse,
 } from '@call-reservation/shared-types';
@@ -42,7 +42,7 @@ export class LoginUseCase {
       throw new InvalidCredentialsError();
     }
 
-    const authenticatedUser: AuthenticatedUserDto = {
+    const authenticatedUser: AuthenticatedUser = {
       id: user.id,
       email: user.email,
       role: user.role,

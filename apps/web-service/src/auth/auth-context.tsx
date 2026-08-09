@@ -1,5 +1,5 @@
 import {
-  AuthenticatedUserDto,
+  AuthenticatedUser,
   LoginPayload,
   RegisterUserPayload,
   Role,
@@ -17,11 +17,11 @@ import { authApi } from '../api/auth-api';
 export const TOKEN_STORAGE_KEY = 'call-reservation.access-token';
 
 interface AuthContextValue {
-  user: AuthenticatedUserDto | null;
+  user: AuthenticatedUser | null;
   token: string | null;
   isLoading: boolean;
-  login(payload: LoginPayload): Promise<AuthenticatedUserDto>;
-  register(payload: RegisterUserPayload): Promise<AuthenticatedUserDto>;
+  login(payload: LoginPayload): Promise<AuthenticatedUser>;
+  register(payload: RegisterUserPayload): Promise<AuthenticatedUser>;
   logout(): void;
 }
 
@@ -32,7 +32,7 @@ export function getRolePath(role: Role): '/admin' | '/user' {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthenticatedUserDto | null>(null);
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 

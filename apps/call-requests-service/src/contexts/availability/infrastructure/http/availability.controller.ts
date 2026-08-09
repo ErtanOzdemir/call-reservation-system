@@ -1,4 +1,4 @@
-import { AvailabilityDto } from '@call-reservation/shared-types';
+import { AvailabilityResponse } from '@call-reservation/shared-types';
 import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 import { GetAvailabilityUseCase } from '../../application/get-availability.use-case';
 import { InvalidAvailabilityDateError } from '../../domain/errors/invalid-availability-date.error';
@@ -9,7 +9,9 @@ export class AvailabilityController {
   constructor(private readonly getAvailability: GetAvailabilityUseCase) {}
 
   @Get()
-  async get(@Query() query: GetAvailabilityQueryDto): Promise<AvailabilityDto> {
+  async get(
+    @Query() query: GetAvailabilityQueryDto,
+  ): Promise<AvailabilityResponse> {
     try {
       return await this.getAvailability.execute(query.date);
     } catch (error) {

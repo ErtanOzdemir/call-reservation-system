@@ -1,5 +1,5 @@
 import {
-  AuthenticatedUserDto,
+  AuthenticatedUser,
   LoginResponse,
   Role,
 } from '@call-reservation/shared-types';
@@ -27,7 +27,9 @@ export class AuthController {
   @Get('me')
   @Roles(Role.USER, Role.ADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  getCurrentUser(@Req() request: AuthenticatedRequest): AuthenticatedUserDto {
+  getCurrentUser(
+    @Req() request: AuthenticatedRequest,
+  ): AuthenticatedUser {
     return request.user;
   }
 

@@ -1,4 +1,4 @@
-import { CallRequestDto } from '@call-reservation/shared-types';
+import { CallRequestResponse } from '@call-reservation/shared-types';
 import { FormEvent, useEffect, useState } from 'react';
 import { callRequestsApi } from '../api/call-requests-api';
 import { ApiError } from '../api/api-client';
@@ -41,8 +41,8 @@ export function UserHomePage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
-  const [booked, setBooked] = useState<CallRequestDto | null>(null);
-  const [myRequests, setMyRequests] = useState<CallRequestDto[]>([]);
+  const [booked, setBooked] = useState<CallRequestResponse | null>(null);
+  const [myRequests, setMyRequests] = useState<CallRequestResponse[]>([]);
   const [isLoadingMine, setIsLoadingMine] = useState(true);
   const [mineError, setMineError] = useState('');
 

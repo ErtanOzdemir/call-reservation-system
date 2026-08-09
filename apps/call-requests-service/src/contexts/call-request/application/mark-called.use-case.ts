@@ -1,4 +1,4 @@
-import { CallRequestDto, CallStatus } from '@call-reservation/shared-types';
+import { CallRequestResponse, CallStatus } from '@call-reservation/shared-types';
 import { Inject, Injectable } from '@nestjs/common';
 import { CallRequestNotFoundError } from '../domain/errors/call-request-not-found.error';
 import { InvalidStateTransitionError } from '../domain/errors/invalid-state-transition.error';
@@ -7,7 +7,7 @@ import {
   CALL_REQUEST_REPOSITORY,
   CallRequestRepositoryPort,
 } from '../domain/ports/call-request-repository.port';
-import { toCallRequestDto } from './to-call-request-dto';
+import { toCallRequestResponse } from './to-call-request-response';
 
 @Injectable()
 export class MarkCalledUseCase {
@@ -16,7 +16,7 @@ export class MarkCalledUseCase {
     private readonly callRequestRepository: CallRequestRepositoryPort,
   ) {}
 
-  async execute(id: string): Promise<CallRequestDto> {
+  async execute(id: string): Promise<CallRequestResponse> {
     const callRequest = await this.callRequestRepository.findById(id);
 
     if (!callRequest) {
@@ -41,6 +41,6 @@ export class MarkCalledUseCase {
       throw new InvalidStateTransitionError(callRequest.status, CallStatus.CALLED);
     }
 
-    return toCallRequestDto(savedCallRequest);
+    return toCallRequestResponse(savedCallRequest);
   }
 }

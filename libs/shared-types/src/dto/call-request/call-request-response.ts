@@ -1,6 +1,6 @@
 import type { CallStatus } from '../../enums';
 
-export interface CallRequestDto {
+export interface CallRequestResponse {
   id: string;
   email: string;
   phoneNumber: string;

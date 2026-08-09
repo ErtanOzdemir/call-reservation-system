@@ -1,6 +1,6 @@
 import {
   CallCanceledEvent,
-  CallRequestDto,
+  CallRequestResponse,
   CallStatus,
   RoutingKey,
 } from '@call-reservation/shared-types';
@@ -12,7 +12,7 @@ import {
   CALL_REQUEST_REPOSITORY,
   CallRequestRepositoryPort,
 } from '../domain/ports/call-request-repository.port';
-import { toCallRequestDto } from './to-call-request-dto';
+import { toCallRequestResponse } from './to-call-request-response';
 
 @Injectable()
 export class CancelCallUseCase {
@@ -21,7 +21,7 @@ export class CancelCallUseCase {
     private readonly callRequestRepository: CallRequestRepositoryPort,
   ) {}
 
-  async execute(id: string): Promise<CallRequestDto> {
+  async execute(id: string): Promise<CallRequestResponse> {
     const callRequest = await this.callRequestRepository.findById(id);
 
     if (!callRequest) {
@@ -52,6 +52,6 @@ export class CancelCallUseCase {
       throw new InvalidStateTransitionError(callRequest.status, CallStatus.CANCELED);
     }
 
-    return toCallRequestDto(savedCallRequest);
+    return toCallRequestResponse(savedCallRequest);
   }
 }

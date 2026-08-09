@@ -1,5 +1,5 @@
 import {
-  AuthenticatedUserDto,
+  AuthenticatedUser,
   RegisterUserPayload,
 } from '@call-reservation/shared-types';
 import { Inject, Injectable } from '@nestjs/common';
@@ -19,7 +19,7 @@ export class RegisterUserUseCase {
     private readonly passwordHasher: PasswordHasherService,
   ) {}
 
-  async execute(payload: RegisterUserPayload): Promise<AuthenticatedUserDto> {
+  async execute(payload: RegisterUserPayload): Promise<AuthenticatedUser> {
     const email = payload.email.trim().toLowerCase();
     const existingUser = await this.userRepository.findByEmail(email);
 

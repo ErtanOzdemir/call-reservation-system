@@ -1,10 +1,12 @@
-import { CallRequestDto } from '@call-reservation/shared-types';
+import { CallRequestResponse } from '@call-reservation/shared-types';
 import { CallRequest } from '../domain/entities/call-request.entity';
 
-export function toCallRequestDto(callRequest: CallRequest): CallRequestDto {
+export function toCallRequestResponse(
+  callRequest: CallRequest,
+): CallRequestResponse {
   if (!callRequest.id || !callRequest.createdAt) {
     throw new Error(
-      'Cannot map a call request without an id and createdAt to a DTO.',
+      'Cannot map a call request without an id and createdAt to a response.',
     );
   }
 

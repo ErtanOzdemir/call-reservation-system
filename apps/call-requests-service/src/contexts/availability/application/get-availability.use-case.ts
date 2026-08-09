@@ -1,4 +1,4 @@
-import { AvailabilityDto } from '@call-reservation/shared-types';
+import { AvailabilityResponse } from '@call-reservation/shared-types';
 import { Injectable } from '@nestjs/common';
 import { DateTime } from 'luxon';
 import {
@@ -12,7 +12,7 @@ import { AvailabilityRepository } from '../infrastructure/mongo/availability.rep
 export class GetAvailabilityUseCase {
   constructor(private readonly availabilityRepository: AvailabilityRepository) {}
 
-  async execute(date: string): Promise<AvailabilityDto> {
+  async execute(date: string): Promise<AvailabilityResponse> {
     const dayStart = DateTime.fromISO(date, { zone: ISTANBUL_TIME_ZONE }).startOf('day');
 
     if (!dayStart.isValid) {

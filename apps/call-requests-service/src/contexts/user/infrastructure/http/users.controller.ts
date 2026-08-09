@@ -1,4 +1,4 @@
-import { AuthenticatedUserDto } from '@call-reservation/shared-types';
+import { AuthenticatedUser } from '@call-reservation/shared-types';
 import { Body, ConflictException, Controller, Post } from '@nestjs/common';
 import { RegisterUserUseCase } from '../../application/register-user.use-case';
 import { UserAlreadyExistsError } from '../../domain/errors/user-already-exists.error';
@@ -11,7 +11,7 @@ export class UsersController {
   @Post()
   async register(
     @Body() payload: RegisterUserDto,
-  ): Promise<AuthenticatedUserDto> {
+  ): Promise<AuthenticatedUser> {
     try {
       return await this.registerUser.execute(payload);
     } catch (error) {

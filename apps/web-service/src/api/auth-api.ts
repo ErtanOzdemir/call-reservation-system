@@ -1,5 +1,5 @@
 import {
-  AuthenticatedUserDto,
+  AuthenticatedUser,
   LoginPayload,
   LoginResponse,
   RegisterUserPayload,
@@ -7,7 +7,7 @@ import {
 import { request } from './api-client';
 
 export const authApi = {
-  register(payload: RegisterUserPayload): Promise<AuthenticatedUserDto> {
+  register(payload: RegisterUserPayload): Promise<AuthenticatedUser> {
     return request('/users', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -21,7 +21,7 @@ export const authApi = {
     });
   },
 
-  getCurrentUser(token: string): Promise<AuthenticatedUserDto> {
+  getCurrentUser(token: string): Promise<AuthenticatedUser> {
     return request('/auth/me', {}, token);
   },
 };

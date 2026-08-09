@@ -1,6 +1,6 @@
-import type { AuthenticatedUserDto } from '../user';
+import type { AuthenticatedUser } from '../user';
 
 export interface LoginResponse {
   accessToken: string;
-  user: AuthenticatedUserDto;
+  user: AuthenticatedUser;
 }

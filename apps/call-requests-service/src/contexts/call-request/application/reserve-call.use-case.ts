@@ -1,5 +1,5 @@
 import {
-  CallRequestDto,
+  CallRequestResponse,
   CallRequestedEvent,
   CallStatus,
   CreateCallRequestPayload,
@@ -14,7 +14,7 @@ import {
   CALL_REQUEST_REPOSITORY,
   CallRequestRepositoryPort,
 } from '../domain/ports/call-request-repository.port';
-import { toCallRequestDto } from './to-call-request-dto';
+import { toCallRequestResponse } from './to-call-request-response';
 
 @Injectable()
 export class ReserveCallUseCase {
@@ -26,7 +26,7 @@ export class ReserveCallUseCase {
   async execute(
     payload: CreateCallRequestPayload,
     requestedByUserId: string,
-  ): Promise<CallRequestDto> {
+  ): Promise<CallRequestResponse> {
     const scheduledAt = new Date(payload.scheduledAt);
 
     WorkingHoursPolicy.assertBookable(scheduledAt, new Date());
@@ -60,6 +60,6 @@ export class ReserveCallUseCase {
       { routingKey: RoutingKey.CallRequested, payload: { ...event } },
     );
 
-    return toCallRequestDto(savedCallRequest);
+    return toCallRequestResponse(savedCallRequest);
   }
 }

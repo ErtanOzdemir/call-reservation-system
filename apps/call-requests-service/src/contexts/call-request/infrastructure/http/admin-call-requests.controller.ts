@@ -1,4 +1,4 @@
-import { CallRequestDto, Role } from '@call-reservation/shared-types';
+import { CallRequestResponse, Role } from '@call-reservation/shared-types';
 import {
   Body,
   ConflictException,
@@ -36,27 +36,27 @@ export class AdminCallRequestsController {
   ) {}
 
   @Get()
-  async list(): Promise<CallRequestDto[]> {
+  async list(): Promise<CallRequestResponse[]> {
     return this.listCallRequests.execute();
   }
 
   @Patch(':id/approve')
-  async approve(@Param('id') id: string): Promise<CallRequestDto> {
+  async approve(@Param('id') id: string): Promise<CallRequestResponse> {
     return this.handle(() => this.approveCall.execute(id));
   }
 
   @Patch(':id/reject')
-  async reject(@Param('id') id: string): Promise<CallRequestDto> {
+  async reject(@Param('id') id: string): Promise<CallRequestResponse> {
     return this.handle(() => this.rejectCall.execute(id));
   }
 
   @Patch(':id/cancel')
-  async cancel(@Param('id') id: string): Promise<CallRequestDto> {
+  async cancel(@Param('id') id: string): Promise<CallRequestResponse> {
     return this.handle(() => this.cancelCall.execute(id));
   }
 
   @Patch(':id/called')
-  async called(@Param('id') id: string): Promise<CallRequestDto> {
+  async called(@Param('id') id: string): Promise<CallRequestResponse> {
     return this.handle(() => this.markCalled.execute(id));
   }
 
@@ -64,13 +64,13 @@ export class AdminCallRequestsController {
   async updateNotes(
     @Param('id') id: string,
     @Body() body: UpdateCallRequestNotesDto,
-  ): Promise<CallRequestDto> {
+  ): Promise<CallRequestResponse> {
     return this.handle(() => this.setNotes.execute(id, body.notes));
   }
 
   private async handle(
-    action: () => Promise<CallRequestDto>,
-  ): Promise<CallRequestDto> {
+    action: () => Promise<CallRequestResponse>,
+  ): Promise<CallRequestResponse> {
     try {
       return await action();
     } catch (error) {

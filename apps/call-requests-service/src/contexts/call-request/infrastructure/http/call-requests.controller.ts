@@ -1,4 +1,4 @@
-import { CallRequestDto, Role } from '@call-reservation/shared-types';
+import { CallRequestResponse, Role } from '@call-reservation/shared-types';
 import {
   BadRequestException,
   Body,
@@ -32,7 +32,7 @@ export class CallRequestsController {
   async create(
     @Body() payload: CreateCallRequestDto,
     @Req() request: AuthenticatedRequest,
-  ): Promise<CallRequestDto> {
+  ): Promise<CallRequestResponse> {
     try {
       return await this.reserveCall.execute(payload, request.user.id);
     } catch (error) {
@@ -53,7 +53,7 @@ export class CallRequestsController {
   @Roles(Role.USER, Role.ADMIN)
   async mine(
     @Req() request: AuthenticatedRequest,
-  ): Promise<Omit<CallRequestDto, 'notes'>[]> {
+  ): Promise<Omit<CallRequestResponse, 'notes'>[]> {
     return this.listMyCallRequests.execute(request.user.id);
   }
 }

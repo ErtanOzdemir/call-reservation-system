@@ -1,4 +1,4 @@
-import { CallRequestDto, CallStatus } from '@call-reservation/shared-types';
+import { CallRequestResponse, CallStatus } from '@call-reservation/shared-types';
 import { useEffect, useState } from 'react';
 import { callRequestsApi } from '../api/call-requests-api';
 import { Navbar } from '../components/navbar';
@@ -18,7 +18,7 @@ function formatDateTime(iso: string): string {
 
 export function AdminHomePage() {
   const { token } = useAuth();
-  const [requests, setRequests] = useState<CallRequestDto[]>([]);
+  const [requests, setRequests] = useState<CallRequestResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
@@ -56,13 +56,13 @@ export function AdminHomePage() {
     return null;
   }
 
-  const replaceRequest = (updated: CallRequestDto) => {
+  const replaceRequest = (updated: CallRequestResponse) => {
     setRequests((current) =>
       current.map((item) => (item.id === updated.id ? updated : item)),
     );
   };
 
-  const runAction = async (id: string, action: () => Promise<CallRequestDto>) => {
+  const runAction = async (id: string, action: () => Promise<CallRequestResponse>) => {
     setPendingActionId(id);
     setError('');
 
