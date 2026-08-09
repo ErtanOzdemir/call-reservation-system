@@ -39,6 +39,10 @@ export class DailyDigestService {
       tomorrowEnd.toJSDate(),
     );
 
+    // Single-admin simplification: the digest always goes to ADMIN_EMAIL.
+    // See the same note in reminder-wakeup.consumer.ts — a multi-admin
+    // design (each request owned by whichever admin approved it) was kept
+    // out of scope here.
     const event: DigestDueEvent = {
       adminEmail: this.adminEmail,
       date: tomorrowStart.toISODate() as string,

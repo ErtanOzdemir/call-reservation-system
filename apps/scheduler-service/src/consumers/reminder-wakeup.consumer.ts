@@ -72,6 +72,11 @@ export class ReminderWakeupConsumer implements OnModuleInit {
       await this.scheduledCallRepository.findByRequestId(requestId);
 
     if (scheduledCall?.status === CallStatus.SCHEDULED) {
+      // Single-admin simplification: every reminder goes to the one address
+      // in ADMIN_EMAIL. A multi-admin setup could broadcast call.requested
+      // to every admin and then route reminders only to whichever admin
+      // approved the request, but that pulls in request-to-admin ownership
+      // that's out of scope for this assignment.
       const event: ReminderDueEvent = {
         requestId,
         customerEmail: scheduledCall.email,
