@@ -111,14 +111,15 @@ export class ReminderOutboxDispatcherService
       new Date(reminder.targetFireAt).getTime() - Date.now(),
     );
 
-    this.rabbitMq.channel.publish(
+    await this.rabbitMq.publish(
       REMINDER_DELAY_EXCHANGE,
       REMINDER_WAKEUP_ROUTING_KEY,
-      Buffer.from(JSON.stringify({ requestId: reminder.requestId })),
-      { headers: { 'x-delay': delayMs }, persistent: true },
+      { requestId: reminder.requestId },
+      { headers: { 'x-delay': delayMs } },
     );
 
-    // Only clear the reminder we just dispatched — matching on
+    // Only clear the reminder once the broker has confirmed the publish —
+    // and only the reminder we just dispatched: matching on
     // targetFireAt guards against clobbering a newer one that could in
     // theory have replaced it between the read above and this write.
     await this.scheduledCallModel

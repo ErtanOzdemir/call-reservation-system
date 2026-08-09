@@ -12,12 +12,7 @@ import { ScheduledCallRepository } from '../state/scheduled-call.repository';
 
 const ISTANBUL_TIME_ZONE = 'Europe/Istanbul';
 
-/**
- * The system's only cron job (see project constraint: only scheduler-service
- * runs cron/intervals). Fires once a day and publishes a single digest.due
- * with tomorrow's SCHEDULED calls, read from this service's own local state
- * — never queries call-requests-service.
- */
+
 @Injectable()
 export class DailyDigestService {
   private readonly logger = new Logger(DailyDigestService.name);
@@ -54,15 +49,18 @@ export class DailyDigestService {
       })),
     };
 
-    this.rabbitMq.channel.publish(
-      CALL_EVENTS_EXCHANGE,
-      RoutingKey.DigestDue,
-      Buffer.from(JSON.stringify(event)),
-      { contentType: 'application/json', persistent: true },
-    );
-
-    this.logger.log(
-      `Published digest.due for ${event.date} with ${event.calls.length} call(s).`,
-    );
+    try {
+      await this.rabbitMq.publish(CALL_EVENTS_EXCHANGE, RoutingKey.DigestDue, {
+        ...event,
+      });
+      this.logger.log(
+        `Published digest.due for ${event.date} with ${event.calls.length} call(s).`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to publish digest.due for ${event.date}.`,
+        error,
+      );
+    }
   }
 }

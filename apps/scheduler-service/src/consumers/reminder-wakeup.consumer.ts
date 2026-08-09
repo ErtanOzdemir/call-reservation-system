@@ -79,11 +79,12 @@ export class ReminderWakeupConsumer implements OnModuleInit {
         scheduledAt: scheduledCall.scheduledAt.toISOString(),
       };
 
-      this.rabbitMq.channel.publish(
+      await this.rabbitMq.publish(
         CALL_EVENTS_EXCHANGE,
         RoutingKey.ReminderDue,
-        Buffer.from(JSON.stringify(event)),
-        { contentType: 'application/json', persistent: true },
+        {
+          ...event,
+        },
       );
 
       this.logger.log(`Published reminder.due for call request ${requestId}.`);

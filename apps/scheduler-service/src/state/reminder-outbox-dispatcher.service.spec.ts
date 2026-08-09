@@ -32,10 +32,13 @@ describe('ReminderOutboxDispatcherService', () => {
   it('dispatches a reminder already pending at startup and clears it', async () => {
     const targetFireAt = new Date(Date.now() + 60_000);
     const model = createModelMock([
-      { requestId: 'req-1', pendingReminder: { requestId: 'req-1', targetFireAt } },
+      {
+        requestId: 'req-1',
+        pendingReminder: { requestId: 'req-1', targetFireAt },
+      },
     ]);
     const rabbitMq = {
-      channel: { publish: jest.fn() },
+      publish: jest.fn(),
     } as unknown as RabbitMqConnectionService;
     const service = new ReminderOutboxDispatcherService(
       model as never as import('mongoose').Model<ScheduledCallDocument>,
@@ -44,11 +47,11 @@ describe('ReminderOutboxDispatcherService', () => {
 
     await service.onModuleInit();
 
-    expect(rabbitMq.channel.publish).toHaveBeenCalledWith(
+    expect(rabbitMq.publish).toHaveBeenCalledWith(
       'reminder.delay',
       'reminder.wakeup',
-      Buffer.from(JSON.stringify({ requestId: 'req-1' })),
-      { headers: { 'x-delay': expect.any(Number) }, persistent: true },
+      { requestId: 'req-1' },
+      { headers: { 'x-delay': expect.any(Number) } },
     );
     expect(model.updateOne).toHaveBeenCalledWith(
       { requestId: 'req-1', 'pendingReminder.targetFireAt': targetFireAt },
@@ -60,10 +63,13 @@ describe('ReminderOutboxDispatcherService', () => {
     // Already due — should clamp to 0, not go negative.
     const targetFireAt = new Date(Date.now() - 60_000);
     const model = createModelMock([
-      { requestId: 'req-1', pendingReminder: { requestId: 'req-1', targetFireAt } },
+      {
+        requestId: 'req-1',
+        pendingReminder: { requestId: 'req-1', targetFireAt },
+      },
     ]);
     const rabbitMq = {
-      channel: { publish: jest.fn() },
+      publish: jest.fn(),
     } as unknown as RabbitMqConnectionService;
     const service = new ReminderOutboxDispatcherService(
       model as never as import('mongoose').Model<ScheduledCallDocument>,
@@ -72,11 +78,11 @@ describe('ReminderOutboxDispatcherService', () => {
 
     await service.onModuleInit();
 
-    expect(rabbitMq.channel.publish).toHaveBeenCalledWith(
+    expect(rabbitMq.publish).toHaveBeenCalledWith(
       'reminder.delay',
       'reminder.wakeup',
-      Buffer.from(JSON.stringify({ requestId: 'req-1' })),
-      { headers: { 'x-delay': 0 }, persistent: true },
+      { requestId: 'req-1' },
+      { headers: { 'x-delay': 0 } },
     );
   });
 
@@ -85,7 +91,7 @@ describe('ReminderOutboxDispatcherService', () => {
       { requestId: 'req-1', pendingReminder: undefined },
     ]);
     const rabbitMq = {
-      channel: { publish: jest.fn() },
+      publish: jest.fn(),
     } as unknown as RabbitMqConnectionService;
     const service = new ReminderOutboxDispatcherService(
       model as never as import('mongoose').Model<ScheduledCallDocument>,
@@ -94,14 +100,14 @@ describe('ReminderOutboxDispatcherService', () => {
 
     await service.onModuleInit();
 
-    expect(rabbitMq.channel.publish).not.toHaveBeenCalled();
+    expect(rabbitMq.publish).not.toHaveBeenCalled();
     expect(model.updateOne).not.toHaveBeenCalled();
   });
 
   it('dispatches a reminder that arrives through the live change stream', async () => {
     const model = createModelMock([]);
     const rabbitMq = {
-      channel: { publish: jest.fn() },
+      publish: jest.fn(),
     } as unknown as RabbitMqConnectionService;
     const service = new ReminderOutboxDispatcherService(
       model as never as import('mongoose').Model<ScheduledCallDocument>,
@@ -120,12 +126,33 @@ describe('ReminderOutboxDispatcherService', () => {
     });
     await flushMicrotasks();
 
-    expect(rabbitMq.channel.publish).toHaveBeenCalledWith(
+    expect(rabbitMq.publish).toHaveBeenCalledWith(
       'reminder.delay',
       'reminder.wakeup',
-      Buffer.from(JSON.stringify({ requestId: 'req-2' })),
-      { headers: { 'x-delay': expect.any(Number) }, persistent: true },
+      { requestId: 'req-2' },
+      { headers: { 'x-delay': expect.any(Number) } },
     );
+  });
+
+  it('does not clear the pending reminder if the broker publish fails', async () => {
+    const targetFireAt = new Date(Date.now() + 60_000);
+    const model = createModelMock([
+      {
+        requestId: 'req-1',
+        pendingReminder: { requestId: 'req-1', targetFireAt },
+      },
+    ]);
+    const rabbitMq = {
+      publish: jest.fn().mockRejectedValue(new Error('broker nacked it')),
+    } as unknown as RabbitMqConnectionService;
+    const service = new ReminderOutboxDispatcherService(
+      model as never as import('mongoose').Model<ScheduledCallDocument>,
+      rabbitMq,
+    );
+
+    await service.onModuleInit();
+
+    expect(model.updateOne).not.toHaveBeenCalled();
   });
 
   it('isolates a publish failure to one document during the startup sweep', async () => {
@@ -147,11 +174,9 @@ describe('ReminderOutboxDispatcherService', () => {
     ]);
     const publish = jest
       .fn()
-      .mockImplementationOnce(() => {
-        throw new Error('channel closed');
-      })
-      .mockImplementationOnce(() => undefined);
-    const rabbitMq = { channel: { publish } } as unknown as RabbitMqConnectionService;
+      .mockRejectedValueOnce(new Error('channel closed'))
+      .mockResolvedValueOnce(undefined);
+    const rabbitMq = { publish } as unknown as RabbitMqConnectionService;
     const service = new ReminderOutboxDispatcherService(
       model as never as import('mongoose').Model<ScheduledCallDocument>,
       rabbitMq,
@@ -164,15 +189,15 @@ describe('ReminderOutboxDispatcherService', () => {
       2,
       'reminder.delay',
       'reminder.wakeup',
-      Buffer.from(JSON.stringify({ requestId: 'req-ok' })),
-      { headers: { 'x-delay': expect.any(Number) }, persistent: true },
+      { requestId: 'req-ok' },
+      { headers: { 'x-delay': expect.any(Number) } },
     );
   });
 
   it('closes the change stream on module destroy', async () => {
     const model = createModelMock([]);
     const rabbitMq = {
-      channel: { publish: jest.fn() },
+      publish: jest.fn(),
     } as unknown as RabbitMqConnectionService;
     const service = new ReminderOutboxDispatcherService(
       model as never as import('mongoose').Model<ScheduledCallDocument>,

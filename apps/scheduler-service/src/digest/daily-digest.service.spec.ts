@@ -12,8 +12,10 @@ import {
 } from '../state/scheduled-call.repository';
 import { DailyDigestService } from './daily-digest.service';
 
-function createChannelMock() {
-  return { publish: jest.fn() };
+function createRabbitMqMock() {
+  return {
+    publish: jest.fn().mockResolvedValue(undefined),
+  } as unknown as RabbitMqConnectionService;
 }
 
 function createConfigServiceMock(): ConfigService {
@@ -23,13 +25,15 @@ function createConfigServiceMock(): ConfigService {
 }
 
 function tomorrowIstanbul(): DateTime {
-  return DateTime.now().setZone('Europe/Istanbul').plus({ days: 1 }).startOf('day');
+  return DateTime.now()
+    .setZone('Europe/Istanbul')
+    .plus({ days: 1 })
+    .startOf('day');
 }
 
 describe('DailyDigestService', () => {
-  it('publishes digest.due with tomorrow\'s SCHEDULED calls, read from local state only', async () => {
-    const channel = createChannelMock();
-    const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
+  it("publishes digest.due with tomorrow's SCHEDULED calls, read from local state only", async () => {
+    const rabbitMq = createRabbitMqMock();
     const tomorrow = tomorrowIstanbul();
     const scheduledCall: ScheduledCallInput = {
       requestId: 'req-1',
@@ -53,29 +57,25 @@ describe('DailyDigestService', () => {
       tomorrow.toJSDate(),
       tomorrow.plus({ days: 1 }).toJSDate(),
     );
-    expect(channel.publish).toHaveBeenCalledWith(
+    expect(rabbitMq.publish).toHaveBeenCalledWith(
       CALL_EVENTS_EXCHANGE,
       RoutingKey.DigestDue,
-      Buffer.from(
-        JSON.stringify({
-          adminEmail: 'admin@call-reservation.local',
-          date: tomorrow.toISODate(),
-          calls: [
-            {
-              requestId: 'req-1',
-              email: 'customer@example.com',
-              scheduledAt: scheduledCall.scheduledAt.toISOString(),
-            },
-          ],
-        }),
-      ),
-      { contentType: 'application/json', persistent: true },
+      {
+        adminEmail: 'admin@call-reservation.local',
+        date: tomorrow.toISODate(),
+        calls: [
+          {
+            requestId: 'req-1',
+            email: 'customer@example.com',
+            scheduledAt: scheduledCall.scheduledAt.toISOString(),
+          },
+        ],
+      },
     );
   });
 
   it('still publishes a digest with an empty calls list when nothing is scheduled', async () => {
-    const channel = createChannelMock();
-    const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
+    const rabbitMq = createRabbitMqMock();
     const findScheduledBetween = jest.fn().mockResolvedValue([]);
     const repository = {
       findScheduledBetween,
@@ -88,7 +88,23 @@ describe('DailyDigestService', () => {
 
     await service.publishDailyDigest();
 
-    const [, , payload] = channel.publish.mock.calls[0];
-    expect(JSON.parse(payload.toString('utf8')).calls).toEqual([]);
+    const [, , payload] = jest.mocked(rabbitMq.publish).mock.calls[0];
+    expect((payload as { calls: unknown[] }).calls).toEqual([]);
+  });
+
+  it('logs and swallows a publish failure rather than crashing the scheduler', async () => {
+    const rabbitMq = {
+      publish: jest.fn().mockRejectedValue(new Error('broker unreachable')),
+    } as unknown as RabbitMqConnectionService;
+    const repository = {
+      findScheduledBetween: jest.fn().mockResolvedValue([]),
+    } as unknown as ScheduledCallRepository;
+    const service = new DailyDigestService(
+      repository,
+      rabbitMq,
+      createConfigServiceMock(),
+    );
+
+    await expect(service.publishDailyDigest()).resolves.toBeUndefined();
   });
 });

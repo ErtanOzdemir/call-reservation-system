@@ -8,14 +8,24 @@ import {
 
 jest.mock('amqplib');
 
+type PublishCallback = (error: Error | null) => void;
+
 describe('RabbitMqConnectionService', () => {
   const channel = {
     assertExchange: jest.fn(),
-    publish: jest.fn().mockReturnValue(true),
+    publish: jest.fn(
+      (
+        _exchange: string,
+        _routingKey: string,
+        _content: Buffer,
+        _options: unknown,
+        callback: PublishCallback,
+      ) => callback(null),
+    ),
     close: jest.fn(),
   };
   const connection = {
-    createChannel: jest.fn(async () => channel),
+    createConfirmChannel: jest.fn(async () => channel),
     close: jest.fn(),
   };
   const configService = {
@@ -26,7 +36,15 @@ describe('RabbitMqConnectionService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    channel.publish.mockReturnValue(true);
+    channel.publish.mockImplementation(
+      (
+        _exchange: string,
+        _routingKey: string,
+        _content: Buffer,
+        _options: unknown,
+        callback: PublishCallback,
+      ) => callback(null),
+    );
     (amqplib.connect as jest.Mock).mockResolvedValue(connection);
   });
 
@@ -36,7 +54,7 @@ describe('RabbitMqConnectionService', () => {
     await service.onModuleInit();
 
     expect(amqplib.connect).toHaveBeenCalledWith('amqp://localhost');
-    expect(connection.createChannel).toHaveBeenCalled();
+    expect(connection.createConfirmChannel).toHaveBeenCalled();
     expect(channel.assertExchange).toHaveBeenCalledWith(
       CALL_EVENTS_EXCHANGE,
       'topic',
@@ -55,17 +73,32 @@ describe('RabbitMqConnectionService', () => {
       'call.requested',
       Buffer.from(JSON.stringify({ requestId: 'abc' })),
       { contentType: 'application/json', persistent: true },
+      expect.any(Function),
     );
   });
 
-  it('retries a failed publish and succeeds on a later attempt', async () => {
+  it('retries a publish the broker nacked and succeeds on a later attempt', async () => {
     const service = new RabbitMqConnectionService(configService);
     await service.onModuleInit();
     channel.publish
-      .mockImplementationOnce(() => {
-        throw new Error('channel closed');
-      })
-      .mockImplementationOnce(() => true);
+      .mockImplementationOnce(
+        (
+          _exchange: string,
+          _routingKey: string,
+          _content: Buffer,
+          _options: unknown,
+          callback: PublishCallback,
+        ) => callback(new Error('channel closed')),
+      )
+      .mockImplementationOnce(
+        (
+          _exchange: string,
+          _routingKey: string,
+          _content: Buffer,
+          _options: unknown,
+          callback: PublishCallback,
+        ) => callback(null),
+      );
 
     await service.publish('call.requested', { requestId: 'abc' });
 
@@ -75,9 +108,15 @@ describe('RabbitMqConnectionService', () => {
   it('gives up and throws after exhausting all retry attempts', async () => {
     const service = new RabbitMqConnectionService(configService);
     await service.onModuleInit();
-    channel.publish.mockImplementation(() => {
-      throw new Error('channel closed');
-    });
+    channel.publish.mockImplementation(
+      (
+        _exchange: string,
+        _routingKey: string,
+        _content: Buffer,
+        _options: unknown,
+        callback: PublishCallback,
+      ) => callback(new Error('channel closed')),
+    );
 
     await expect(
       service.publish('call.requested', { requestId: 'abc' }),

@@ -6,7 +6,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Channel, ChannelModel, connect } from 'amqplib';
+import { ChannelModel, ConfirmChannel, connect } from 'amqplib';
 
 export const MAX_PUBLISH_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 200;
@@ -17,14 +17,14 @@ export class RabbitMqConnectionService
 {
   private readonly logger = new Logger(RabbitMqConnectionService.name);
   private connection?: ChannelModel;
-  private channel?: Channel;
+  private channel?: ConfirmChannel;
 
   constructor(private readonly configService: ConfigService) {}
 
   async onModuleInit(): Promise<void> {
     const url = this.configService.getOrThrow<string>('rabbitmq.url');
     this.connection = await connect(url);
-    this.channel = await this.connection.createChannel();
+    this.channel = await this.connection.createConfirmChannel();
     await this.channel.assertExchange(CALL_EVENTS_EXCHANGE, 'topic', {
       durable: true,
     });
@@ -43,12 +43,7 @@ export class RabbitMqConnectionService
     }
 
     try {
-      this.channel.publish(
-        CALL_EVENTS_EXCHANGE,
-        routingKey,
-        Buffer.from(JSON.stringify(payload)),
-        { contentType: 'application/json', persistent: true },
-      );
+      await this.publishWithConfirm(this.channel, routingKey, payload);
     } catch (error) {
       if (attempt >= MAX_PUBLISH_ATTEMPTS) {
         this.logger.error(
@@ -70,6 +65,22 @@ export class RabbitMqConnectionService
   async onModuleDestroy(): Promise<void> {
     await this.channel?.close();
     await this.connection?.close();
+  }
+
+  private publishWithConfirm(
+    channel: ConfirmChannel,
+    routingKey: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      channel.publish(
+        CALL_EVENTS_EXCHANGE,
+        routingKey,
+        Buffer.from(JSON.stringify(payload)),
+        { contentType: 'application/json', persistent: true },
+        (error) => (error ? reject(error) : resolve()),
+      );
+    });
   }
 
   private delay(ms: number): Promise<void> {
