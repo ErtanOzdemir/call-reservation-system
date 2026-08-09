@@ -12,7 +12,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { LoginUseCase } from '../../application/login.use-case';
+import { LoginUseCase } from '../../application/useCase/login.use-case';
 import { LoginUseCaseHandler } from '../../application/login.use-case-handler';
 import { InvalidCredentialsError } from '../../domain/errors/invalid-credentials.error';
 import { AuthenticatedRequest } from './authenticated-request';

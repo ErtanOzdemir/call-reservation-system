@@ -12,7 +12,7 @@ import {
   CALL_REQUEST_REPOSITORY,
   CallRequestRepositoryPort,
 } from '../domain/ports/call-request-repository.port';
-import { ReserveCallUseCase } from './reserve-call.use-case';
+import { ReserveCallUseCase } from './useCase/reserve-call.use-case';
 
 @Injectable()
 export class ReserveCallUseCaseHandler {

@@ -1,5 +1,5 @@
 import { CallStatus } from '@call-reservation/shared-types';
-import { ListMyCallRequestsUseCase } from './list-my-call-requests.use-case';
+import { ListMyCallRequestsUseCase } from './useCase/list-my-call-requests.use-case';
 import { ListMyCallRequestsUseCaseHandler } from './list-my-call-requests.use-case-handler';
 import {
   InMemoryCallRequestRepository,

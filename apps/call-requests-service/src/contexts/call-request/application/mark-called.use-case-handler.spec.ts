@@ -1,7 +1,7 @@
 import { CallStatus } from '@call-reservation/shared-types';
 import { CallRequestNotFoundError } from '../domain/errors/call-request-not-found.error';
 import { InvalidStateTransitionError } from '../domain/errors/invalid-state-transition.error';
-import { MarkCalledUseCase } from './mark-called.use-case';
+import { MarkCalledUseCase } from './useCase/mark-called.use-case';
 import { MarkCalledUseCaseHandler } from './mark-called.use-case-handler';
 import {
   InMemoryCallRequestRepository,

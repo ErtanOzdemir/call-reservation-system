@@ -4,7 +4,7 @@ import {
   CALL_REQUEST_REPOSITORY,
   CallRequestRepositoryPort,
 } from '../domain/ports/call-request-repository.port';
-import { ListMyCallRequestsUseCase } from './list-my-call-requests.use-case';
+import { ListMyCallRequestsUseCase } from './useCase/list-my-call-requests.use-case';
 
 @Injectable()
 export class ListMyCallRequestsUseCaseHandler {

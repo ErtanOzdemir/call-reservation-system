@@ -13,9 +13,9 @@ import { AuthenticatedRequest } from '../../../auth/infrastructure/http/authenti
 import { JwtAuthGuard } from '../../../auth/infrastructure/http/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../auth/infrastructure/http/guards/roles.guard';
 import { Roles } from '../../../auth/infrastructure/http/roles.decorator';
-import { ListMyCallRequestsUseCase } from '../../application/list-my-call-requests.use-case';
+import { ListMyCallRequestsUseCase } from '../../application/useCase/list-my-call-requests.use-case';
 import { ListMyCallRequestsUseCaseHandler } from '../../application/list-my-call-requests.use-case-handler';
-import { ReserveCallUseCase } from '../../application/reserve-call.use-case';
+import { ReserveCallUseCase } from '../../application/useCase/reserve-call.use-case';
 import { ReserveCallUseCaseHandler } from '../../application/reserve-call.use-case-handler';
 import { toCallRequestResponse } from '../../application/to-call-request-response';
 import { InvalidReservationTimeError } from '../../domain/errors/invalid-reservation-time.error';

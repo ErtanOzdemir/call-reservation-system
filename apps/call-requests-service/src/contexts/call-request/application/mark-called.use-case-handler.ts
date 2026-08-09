@@ -8,7 +8,7 @@ import {
   CALL_REQUEST_REPOSITORY,
   CallRequestRepositoryPort,
 } from '../domain/ports/call-request-repository.port';
-import { MarkCalledUseCase } from './mark-called.use-case';
+import { MarkCalledUseCase } from './useCase/mark-called.use-case';
 
 @Injectable()
 export class MarkCalledUseCaseHandler {

@@ -2,7 +2,7 @@ import { CallStatus, RoutingKey } from '@call-reservation/shared-types';
 import { DateTime } from 'luxon';
 import { InvalidReservationTimeError } from '../domain/errors/invalid-reservation-time.error';
 import { SlotUnavailableError } from '../domain/errors/slot-unavailable.error';
-import { ReserveCallUseCase } from './reserve-call.use-case';
+import { ReserveCallUseCase } from './useCase/reserve-call.use-case';
 import { ReserveCallUseCaseHandler } from './reserve-call.use-case-handler';
 import {
   DEFAULT_CREATED_AT,

@@ -1,6 +1,6 @@
 import { AuthenticatedUser } from '@call-reservation/shared-types';
 import { Body, ConflictException, Controller, Post } from '@nestjs/common';
-import { RegisterUserUseCase } from '../../application/register-user.use-case';
+import { RegisterUserUseCase } from '../../application/useCase/register-user.use-case';
 import { RegisterUserUseCaseHandler } from '../../application/register-user.use-case-handler';
 import { UserAlreadyExistsError } from '../../domain/errors/user-already-exists.error';
 import { RegisterUserDto } from './dto/register-user.dto';

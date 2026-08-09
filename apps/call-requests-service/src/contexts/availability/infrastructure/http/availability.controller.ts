@@ -1,6 +1,6 @@
 import { AvailabilityResponse } from '@call-reservation/shared-types';
 import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
-import { GetAvailabilityUseCase } from '../../application/get-availability.use-case';
+import { GetAvailabilityUseCase } from '../../application/useCase/get-availability.use-case';
 import { GetAvailabilityUseCaseHandler } from '../../application/get-availability.use-case-handler';
 import { InvalidAvailabilityDateError } from '../../domain/errors/invalid-availability-date.error';
 import { GetAvailabilityQueryDto } from './dto/get-availability-query.dto';

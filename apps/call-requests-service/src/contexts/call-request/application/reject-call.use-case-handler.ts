@@ -8,7 +8,7 @@ import {
   CALL_REQUEST_REPOSITORY,
   CallRequestRepositoryPort,
 } from '../domain/ports/call-request-repository.port';
-import { RejectCallUseCase } from './reject-call.use-case';
+import { RejectCallUseCase } from './useCase/reject-call.use-case';
 
 @Injectable()
 export class RejectCallUseCaseHandler {

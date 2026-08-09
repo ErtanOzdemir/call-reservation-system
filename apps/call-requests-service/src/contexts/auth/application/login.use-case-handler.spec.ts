@@ -4,7 +4,7 @@ import { User } from '../../user/domain/entities/user.entity';
 import { UserRepositoryPort } from '../../user/domain/ports/user-repository.port';
 import { InvalidCredentialsError } from '../domain/errors/invalid-credentials.error';
 import { TokenIssuerPort } from '../domain/ports/token-issuer.port';
-import { LoginUseCase } from './login.use-case';
+import { LoginUseCase } from './useCase/login.use-case';
 import { LoginUseCaseHandler } from './login.use-case-handler';
 
 describe('LoginUseCaseHandler', () => {

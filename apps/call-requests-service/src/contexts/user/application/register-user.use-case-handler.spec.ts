@@ -3,7 +3,7 @@ import { PasswordHasherService } from '../../../shared-kernel/crypto/password-ha
 import { User } from '../domain/entities/user.entity';
 import { UserAlreadyExistsError } from '../domain/errors/user-already-exists.error';
 import { UserRepositoryPort } from '../domain/ports/user-repository.port';
-import { RegisterUserUseCase } from './register-user.use-case';
+import { RegisterUserUseCase } from './useCase/register-user.use-case';
 import { RegisterUserUseCaseHandler } from './register-user.use-case-handler';
 
 class InMemoryUserRepository implements UserRepositoryPort {

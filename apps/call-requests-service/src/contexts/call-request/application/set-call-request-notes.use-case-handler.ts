@@ -5,7 +5,7 @@ import {
   CALL_REQUEST_REPOSITORY,
   CallRequestRepositoryPort,
 } from '../domain/ports/call-request-repository.port';
-import { SetCallRequestNotesUseCase } from './set-call-request-notes.use-case';
+import { SetCallRequestNotesUseCase } from './useCase/set-call-request-notes.use-case';
 
 @Injectable()
 export class SetCallRequestNotesUseCaseHandler {

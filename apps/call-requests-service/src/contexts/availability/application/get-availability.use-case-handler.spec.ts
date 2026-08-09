@@ -1,7 +1,7 @@
 import { DateTime } from 'luxon';
 import { InvalidAvailabilityDateError } from '../domain/errors/invalid-availability-date.error';
 import { AvailabilityRepository } from '../infrastructure/mongo/availability.repository';
-import { GetAvailabilityUseCase } from './get-availability.use-case';
+import { GetAvailabilityUseCase } from './useCase/get-availability.use-case';
 import { GetAvailabilityUseCaseHandler } from './get-availability.use-case-handler';
 
 function nextIstanbulWeekday(): DateTime {

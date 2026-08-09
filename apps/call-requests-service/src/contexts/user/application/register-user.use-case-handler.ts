@@ -7,7 +7,7 @@ import {
   USER_REPOSITORY,
   UserRepositoryPort,
 } from '../domain/ports/user-repository.port';
-import { RegisterUserUseCase } from './register-user.use-case';
+import { RegisterUserUseCase } from './useCase/register-user.use-case';
 
 @Injectable()
 export class RegisterUserUseCaseHandler {

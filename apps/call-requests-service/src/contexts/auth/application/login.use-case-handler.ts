@@ -10,7 +10,7 @@ import {
   USER_REPOSITORY,
   UserRepositoryPort,
 } from '../../user/domain/ports/user-repository.port';
-import { LoginUseCase } from './login.use-case';
+import { LoginUseCase } from './useCase/login.use-case';
 
 export interface LoginResult {
   accessToken: string;

@@ -1,6 +1,6 @@
 import { CallStatus } from '@call-reservation/shared-types';
 import { CallRequestNotFoundError } from '../domain/errors/call-request-not-found.error';
-import { SetCallRequestNotesUseCase } from './set-call-request-notes.use-case';
+import { SetCallRequestNotesUseCase } from './useCase/set-call-request-notes.use-case';
 import { SetCallRequestNotesUseCaseHandler } from './set-call-request-notes.use-case-handler';
 import {
   InMemoryCallRequestRepository,
