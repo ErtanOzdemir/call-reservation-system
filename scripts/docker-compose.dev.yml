@@ -13,10 +13,22 @@ services:
       - '127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672'
 
   mailhog:
-    image: mailhog/mailhog:v1.0.1
     ports:
       - '127.0.0.1:${MAILHOG_SMTP_PORT:-1025}:1025'
       - '127.0.0.1:${MAILHOG_HTTP_PORT:-8025}:8025'
-    restart: unless-stopped
-    networks:
-      - backend
+
+  call-requests-service:
+    ports:
+      - '127.0.0.1:${CALL_REQUESTS_SERVICE_PORT:-3001}:3001'
+
+  scheduler-service:
+    ports:
+      - '127.0.0.1:${SCHEDULER_SERVICE_PORT:-3003}:3003'
+
+  communication-service:
+    ports:
+      - '127.0.0.1:${COMMUNICATION_SERVICE_PORT:-3002}:3002'
+
+  web-service:
+    ports:
+      - '127.0.0.1:${WEB_SERVICE_PORT:-4200}:80'
