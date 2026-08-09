@@ -25,13 +25,7 @@
       "plugin": "@nx/jest/plugin",
       "options": {
         "targetName": "test"
-      },
-      "exclude": [
-        "apps/api-e2e/**/*",
-        "apps/call-requests-service-e2e/**/*",
-        "apps/scheduler-service-e2e/**/*",
-        "apps/communication-service-e2e/**/*"
-      ]
+      }
     },
     {
       "plugin": "@nx/webpack/plugin",
@@ -55,12 +49,6 @@
         "typecheckTargetName": "typecheck",
         "buildDepsTargetName": "build-deps",
         "watchDepsTargetName": "watch-deps"
-      }
-    },
-    {
-      "plugin": "@nx/playwright/plugin",
-      "options": {
-        "targetName": "e2e"
       }
     }
   ],

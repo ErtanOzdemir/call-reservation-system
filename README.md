@@ -292,8 +292,7 @@ call-reservation-system/
 │   ├── call-requests-service/   # REST API · source of truth · hexagonal core + outbox publisher
 │   ├── scheduler-service/       # only cron/interval owner · delayed-exchange consumer
 │   ├── communication-service/   # email templates · SMTP sender · terminal consumer
-│   ├── web-service/             # React frontend (User view / Admin view)
-│   └── *-e2e/                   # e2e test projects for the services above
+│   └── web-service/             # React frontend (User view / Admin view)
 ├── libs/
 │   └── shared-types/            # DTOs, enums, and event-payload contracts shared by every app
 ├── scripts/
