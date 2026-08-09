@@ -6,6 +6,7 @@ import { SlotUnavailableError } from '../domain/errors/slot-unavailable.error';
 import { OutboxEvent } from '../domain/outbox-event';
 import { CallRequestRepositoryPort } from '../domain/ports/call-request-repository.port';
 import { ReserveCallUseCase } from './reserve-call.use-case';
+import { ReserveCallUseCaseHandler } from './reserve-call.use-case-handler';
 
 const PERSISTED_AT = new Date('2026-08-03T09:00:00+03:00');
 
@@ -45,46 +46,46 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
   }
 
   async transition(): Promise<CallRequest | null> {
-    throw new Error('not used by ReserveCallUseCase');
+    throw new Error('not used by ReserveCallUseCaseHandler');
   }
 
   async setNotes(): Promise<CallRequest | null> {
-    throw new Error('not used by ReserveCallUseCase');
+    throw new Error('not used by ReserveCallUseCaseHandler');
   }
 
   async findAll(): Promise<CallRequest[]> {
-    throw new Error('not used by ReserveCallUseCase');
+    throw new Error('not used by ReserveCallUseCaseHandler');
   }
 
   async findByRequestedByUserId(): Promise<CallRequest[]> {
-    throw new Error('not used by ReserveCallUseCase');
+    throw new Error('not used by ReserveCallUseCaseHandler');
   }
 }
 
-describe('ReserveCallUseCase', () => {
+describe('ReserveCallUseCaseHandler', () => {
   it('books a valid slot and returns the persisted request', async () => {
     const repository = new InMemoryCallRequestRepository();
-    const useCase = new ReserveCallUseCase(repository);
+    const handler = new ReserveCallUseCaseHandler(repository);
     const scheduledAt = nextIstanbulMondayAt(10);
 
-    const result = await useCase.execute(
-      {
-        email: ' Customer@Example.com ',
-        phoneNumber: ' +905551234567 ',
-        scheduledAt: scheduledAt.toISOString(),
-      },
-      'user-1',
+    const result = await handler.execute(
+      new ReserveCallUseCase(
+        ' Customer@Example.com ',
+        ' +905551234567 ',
+        scheduledAt.toISOString(),
+        'user-1',
+      ),
     );
 
     expect(result).toEqual({
       id: expect.any(String),
       email: 'customer@example.com',
       phoneNumber: '+905551234567',
-      scheduledAt: scheduledAt.toISOString(),
+      scheduledAt,
       durationMinutes: 30,
       status: CallStatus.REQUESTED,
       requestedByUserId: 'user-1',
-      createdAt: PERSISTED_AT.toISOString(),
+      createdAt: PERSISTED_AT,
     });
     expect(repository.saved).toHaveLength(1);
     expect(repository.saved[0].event).toEqual({
@@ -101,17 +102,17 @@ describe('ReserveCallUseCase', () => {
 
   it('rejects a slot outside working hours without persisting anything', async () => {
     const repository = new InMemoryCallRequestRepository();
-    const useCase = new ReserveCallUseCase(repository);
+    const handler = new ReserveCallUseCaseHandler(repository);
     const outsideWorkingHours = nextIstanbulMondayAt(20);
 
     await expect(
-      useCase.execute(
-        {
-          email: 'customer@example.com',
-          phoneNumber: '+905551234567',
-          scheduledAt: outsideWorkingHours.toISOString(),
-        },
-        'user-1',
+      handler.execute(
+        new ReserveCallUseCase(
+          'customer@example.com',
+          '+905551234567',
+          outsideWorkingHours.toISOString(),
+          'user-1',
+        ),
       ),
     ).rejects.toBeInstanceOf(InvalidReservationTimeError);
     expect(repository.saved).toHaveLength(0);
@@ -121,16 +122,16 @@ describe('ReserveCallUseCase', () => {
     const repository = new InMemoryCallRequestRepository();
     const scheduledAt = nextIstanbulMondayAt(10);
     repository.conflictingSlot = scheduledAt;
-    const useCase = new ReserveCallUseCase(repository);
+    const handler = new ReserveCallUseCaseHandler(repository);
 
     await expect(
-      useCase.execute(
-        {
-          email: 'customer@example.com',
-          phoneNumber: '+905551234567',
-          scheduledAt: scheduledAt.toISOString(),
-        },
-        'user-1',
+      handler.execute(
+        new ReserveCallUseCase(
+          'customer@example.com',
+          '+905551234567',
+          scheduledAt.toISOString(),
+          'user-1',
+        ),
       ),
     ).rejects.toBeInstanceOf(SlotUnavailableError);
     expect(repository.saved).toHaveLength(0);

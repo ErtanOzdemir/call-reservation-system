@@ -13,11 +13,18 @@ import { JwtAuthGuard } from '../../../auth/infrastructure/http/guards/jwt-auth.
 import { RolesGuard } from '../../../auth/infrastructure/http/guards/roles.guard';
 import { Roles } from '../../../auth/infrastructure/http/roles.decorator';
 import { ApproveCallUseCase } from '../../application/approve-call.use-case';
+import { ApproveCallUseCaseHandler } from '../../application/approve-call.use-case-handler';
 import { CancelCallUseCase } from '../../application/cancel-call.use-case';
-import { ListCallRequestsUseCase } from '../../application/list-call-requests.use-case';
+import { CancelCallUseCaseHandler } from '../../application/cancel-call.use-case-handler';
+import { ListCallRequestsUseCaseHandler } from '../../application/list-call-requests.use-case-handler';
 import { MarkCalledUseCase } from '../../application/mark-called.use-case';
+import { MarkCalledUseCaseHandler } from '../../application/mark-called.use-case-handler';
 import { RejectCallUseCase } from '../../application/reject-call.use-case';
+import { RejectCallUseCaseHandler } from '../../application/reject-call.use-case-handler';
 import { SetCallRequestNotesUseCase } from '../../application/set-call-request-notes.use-case';
+import { SetCallRequestNotesUseCaseHandler } from '../../application/set-call-request-notes.use-case-handler';
+import { toCallRequestResponse } from '../../application/to-call-request-response';
+import { CallRequest } from '../../domain/entities/call-request.entity';
 import { CallRequestNotFoundError } from '../../domain/errors/call-request-not-found.error';
 import { InvalidStateTransitionError } from '../../domain/errors/invalid-state-transition.error';
 import { UpdateCallRequestNotesDto } from './dto/update-call-request-notes.dto';
@@ -27,37 +34,46 @@ import { UpdateCallRequestNotesDto } from './dto/update-call-request-notes.dto';
 @Roles(Role.ADMIN)
 export class AdminCallRequestsController {
   constructor(
-    private readonly approveCall: ApproveCallUseCase,
-    private readonly rejectCall: RejectCallUseCase,
-    private readonly cancelCall: CancelCallUseCase,
-    private readonly markCalled: MarkCalledUseCase,
-    private readonly setNotes: SetCallRequestNotesUseCase,
-    private readonly listCallRequests: ListCallRequestsUseCase,
+    private readonly approveCall: ApproveCallUseCaseHandler,
+    private readonly rejectCall: RejectCallUseCaseHandler,
+    private readonly cancelCall: CancelCallUseCaseHandler,
+    private readonly markCalled: MarkCalledUseCaseHandler,
+    private readonly setNotes: SetCallRequestNotesUseCaseHandler,
+    private readonly listCallRequests: ListCallRequestsUseCaseHandler,
   ) {}
 
   @Get()
   async list(): Promise<CallRequestResponse[]> {
-    return this.listCallRequests.execute();
+    const callRequests = await this.listCallRequests.execute();
+    return callRequests.map(toCallRequestResponse);
   }
 
   @Patch(':id/approve')
   async approve(@Param('id') id: string): Promise<CallRequestResponse> {
-    return this.handle(() => this.approveCall.execute(id));
+    return this.handle(() =>
+      this.approveCall.execute(new ApproveCallUseCase(id)),
+    );
   }
 
   @Patch(':id/reject')
   async reject(@Param('id') id: string): Promise<CallRequestResponse> {
-    return this.handle(() => this.rejectCall.execute(id));
+    return this.handle(() =>
+      this.rejectCall.execute(new RejectCallUseCase(id)),
+    );
   }
 
   @Patch(':id/cancel')
   async cancel(@Param('id') id: string): Promise<CallRequestResponse> {
-    return this.handle(() => this.cancelCall.execute(id));
+    return this.handle(() =>
+      this.cancelCall.execute(new CancelCallUseCase(id)),
+    );
   }
 
   @Patch(':id/called')
   async called(@Param('id') id: string): Promise<CallRequestResponse> {
-    return this.handle(() => this.markCalled.execute(id));
+    return this.handle(() =>
+      this.markCalled.execute(new MarkCalledUseCase(id)),
+    );
   }
 
   @Patch(':id/notes')
@@ -65,14 +81,16 @@ export class AdminCallRequestsController {
     @Param('id') id: string,
     @Body() body: UpdateCallRequestNotesDto,
   ): Promise<CallRequestResponse> {
-    return this.handle(() => this.setNotes.execute(id, body.notes));
+    return this.handle(() =>
+      this.setNotes.execute(new SetCallRequestNotesUseCase(id, body.notes)),
+    );
   }
 
   private async handle(
-    action: () => Promise<CallRequestResponse>,
+    action: () => Promise<CallRequest>,
   ): Promise<CallRequestResponse> {
     try {
-      return await action();
+      return toCallRequestResponse(await action());
     } catch (error) {
       if (error instanceof CallRequestNotFoundError) {
         throw new NotFoundException(error.message);

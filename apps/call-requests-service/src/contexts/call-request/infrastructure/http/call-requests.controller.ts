@@ -14,7 +14,10 @@ import { JwtAuthGuard } from '../../../auth/infrastructure/http/guards/jwt-auth.
 import { RolesGuard } from '../../../auth/infrastructure/http/guards/roles.guard';
 import { Roles } from '../../../auth/infrastructure/http/roles.decorator';
 import { ListMyCallRequestsUseCase } from '../../application/list-my-call-requests.use-case';
+import { ListMyCallRequestsUseCaseHandler } from '../../application/list-my-call-requests.use-case-handler';
 import { ReserveCallUseCase } from '../../application/reserve-call.use-case';
+import { ReserveCallUseCaseHandler } from '../../application/reserve-call.use-case-handler';
+import { toCallRequestResponse } from '../../application/to-call-request-response';
 import { InvalidReservationTimeError } from '../../domain/errors/invalid-reservation-time.error';
 import { SlotUnavailableError } from '../../domain/errors/slot-unavailable.error';
 import { CreateCallRequestDto } from './dto/create-call-request.dto';
@@ -22,8 +25,8 @@ import { CreateCallRequestDto } from './dto/create-call-request.dto';
 @Controller('call-requests')
 export class CallRequestsController {
   constructor(
-    private readonly reserveCall: ReserveCallUseCase,
-    private readonly listMyCallRequests: ListMyCallRequestsUseCase,
+    private readonly reserveCall: ReserveCallUseCaseHandler,
+    private readonly listMyCallRequests: ListMyCallRequestsUseCaseHandler,
   ) {}
 
   @Post()
@@ -34,7 +37,15 @@ export class CallRequestsController {
     @Req() request: AuthenticatedRequest,
   ): Promise<CallRequestResponse> {
     try {
-      return await this.reserveCall.execute(payload, request.user.id);
+      const callRequest = await this.reserveCall.execute(
+        new ReserveCallUseCase(
+          payload.email,
+          payload.phoneNumber,
+          payload.scheduledAt,
+          request.user.id,
+        ),
+      );
+      return toCallRequestResponse(callRequest);
     } catch (error) {
       if (error instanceof InvalidReservationTimeError) {
         throw new BadRequestException(error.message);
@@ -54,6 +65,9 @@ export class CallRequestsController {
   async mine(
     @Req() request: AuthenticatedRequest,
   ): Promise<Omit<CallRequestResponse, 'notes'>[]> {
-    return this.listMyCallRequests.execute(request.user.id);
+    const callRequests = await this.listMyCallRequests.execute(
+      new ListMyCallRequestsUseCase(request.user.id),
+    );
+    return callRequests.map(toCallRequestResponse);
   }
 }

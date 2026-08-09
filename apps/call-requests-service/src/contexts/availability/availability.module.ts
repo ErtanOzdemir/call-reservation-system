@@ -4,7 +4,7 @@ import {
   CallRequestRecord,
   CallRequestSchema,
 } from '../call-request/infrastructure/mongo/call-request.schema';
-import { GetAvailabilityUseCase } from './application/get-availability.use-case';
+import { GetAvailabilityUseCaseHandler } from './application/get-availability.use-case-handler';
 import { AvailabilityController } from './infrastructure/http/availability.controller';
 import { AvailabilityRepository } from './infrastructure/mongo/availability.repository';
 
@@ -15,6 +15,6 @@ import { AvailabilityRepository } from './infrastructure/mongo/availability.repo
     ]),
   ],
   controllers: [AvailabilityController],
-  providers: [GetAvailabilityUseCase, AvailabilityRepository],
+  providers: [GetAvailabilityUseCaseHandler, AvailabilityRepository],
 })
 export class AvailabilityModule {}

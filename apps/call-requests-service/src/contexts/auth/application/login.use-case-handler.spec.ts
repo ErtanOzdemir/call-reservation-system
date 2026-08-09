@@ -5,8 +5,9 @@ import { UserRepositoryPort } from '../../user/domain/ports/user-repository.port
 import { InvalidCredentialsError } from '../domain/errors/invalid-credentials.error';
 import { TokenIssuerPort } from '../domain/ports/token-issuer.port';
 import { LoginUseCase } from './login.use-case';
+import { LoginUseCaseHandler } from './login.use-case-handler';
 
-describe('LoginUseCase', () => {
+describe('LoginUseCaseHandler', () => {
   const user = new User(
     'user-id',
     'person@example.com',
@@ -22,7 +23,11 @@ describe('LoginUseCase', () => {
   const tokenIssuer = {
     issue: jest.fn(),
   } as unknown as TokenIssuerPort;
-  const useCase = new LoginUseCase(userRepository, passwordHasher, tokenIssuer);
+  const handler = new LoginUseCaseHandler(
+    userRepository,
+    passwordHasher,
+    tokenIssuer,
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -34,10 +39,7 @@ describe('LoginUseCase', () => {
     jest.mocked(tokenIssuer.issue).mockResolvedValue('signed-token');
 
     await expect(
-      useCase.execute({
-        email: ' PERSON@Example.com ',
-        password: 'password123',
-      }),
+      handler.execute(new LoginUseCase(' PERSON@Example.com ', 'password123')),
     ).resolves.toEqual({
       accessToken: 'signed-token',
       user: {
@@ -59,10 +61,7 @@ describe('LoginUseCase', () => {
     jest.mocked(userRepository.findByEmail).mockResolvedValue(null);
 
     await expect(
-      useCase.execute({
-        email: 'missing@example.com',
-        password: 'password123',
-      }),
+      handler.execute(new LoginUseCase('missing@example.com', 'password123')),
     ).rejects.toBeInstanceOf(InvalidCredentialsError);
     expect(passwordHasher.compare).not.toHaveBeenCalled();
   });
@@ -72,10 +71,9 @@ describe('LoginUseCase', () => {
     jest.mocked(passwordHasher.compare).mockResolvedValue(false);
 
     await expect(
-      useCase.execute({
-        email: 'person@example.com',
-        password: 'incorrect-password',
-      }),
+      handler.execute(
+        new LoginUseCase('person@example.com', 'incorrect-password'),
+      ),
     ).rejects.toBeInstanceOf(InvalidCredentialsError);
     expect(tokenIssuer.issue).not.toHaveBeenCalled();
   });

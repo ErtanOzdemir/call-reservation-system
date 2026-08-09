@@ -2,6 +2,7 @@ import { DateTime } from 'luxon';
 import { InvalidAvailabilityDateError } from '../domain/errors/invalid-availability-date.error';
 import { AvailabilityRepository } from '../infrastructure/mongo/availability.repository';
 import { GetAvailabilityUseCase } from './get-availability.use-case';
+import { GetAvailabilityUseCaseHandler } from './get-availability.use-case-handler';
 
 function nextIstanbulWeekday(): DateTime {
   let day = DateTime.now().setZone('Europe/Istanbul').plus({ days: 1 });
@@ -13,16 +14,18 @@ function nextIstanbulWeekday(): DateTime {
   return day.startOf('day');
 }
 
-describe('GetAvailabilityUseCase', () => {
+describe('GetAvailabilityUseCaseHandler', () => {
   it('returns all sixteen slots when nothing is booked that day', async () => {
     const findOccupiedSlots = jest.fn().mockResolvedValue([]);
     const repository = {
       findOccupiedSlots,
     } as unknown as AvailabilityRepository;
-    const useCase = new GetAvailabilityUseCase(repository);
+    const handler = new GetAvailabilityUseCaseHandler(repository);
     const day = nextIstanbulWeekday();
 
-    const result = await useCase.execute(day.toISODate() as string);
+    const result = await handler.execute(
+      new GetAvailabilityUseCase(day.toISODate() as string),
+    );
 
     expect(result.date).toBe(day.toISODate());
     expect(result.availableSlots).toHaveLength(16);
@@ -38,9 +41,11 @@ describe('GetAvailabilityUseCase', () => {
     const repository = {
       findOccupiedSlots,
     } as unknown as AvailabilityRepository;
-    const useCase = new GetAvailabilityUseCase(repository);
+    const handler = new GetAvailabilityUseCaseHandler(repository);
 
-    const result = await useCase.execute(day.toISODate() as string);
+    const result = await handler.execute(
+      new GetAvailabilityUseCase(day.toISODate() as string),
+    );
 
     expect(result.availableSlots).toHaveLength(15);
     expect(result.availableSlots).not.toContain(
@@ -53,14 +58,16 @@ describe('GetAvailabilityUseCase', () => {
     const repository = {
       findOccupiedSlots,
     } as unknown as AvailabilityRepository;
-    const useCase = new GetAvailabilityUseCase(repository);
+    const handler = new GetAvailabilityUseCaseHandler(repository);
 
     let saturday = DateTime.now().setZone('Europe/Istanbul').plus({ days: 1 });
     while (saturday.weekday !== 6) {
       saturday = saturday.plus({ days: 1 });
     }
 
-    const result = await useCase.execute(saturday.toISODate() as string);
+    const result = await handler.execute(
+      new GetAvailabilityUseCase(saturday.toISODate() as string),
+    );
 
     expect(result.availableSlots).toEqual([]);
     expect(findOccupiedSlots).not.toHaveBeenCalled();
@@ -70,10 +77,10 @@ describe('GetAvailabilityUseCase', () => {
     const repository = {
       findOccupiedSlots: jest.fn(),
     } as unknown as AvailabilityRepository;
-    const useCase = new GetAvailabilityUseCase(repository);
+    const handler = new GetAvailabilityUseCaseHandler(repository);
 
-    await expect(useCase.execute('not-a-date')).rejects.toBeInstanceOf(
-      InvalidAvailabilityDateError,
-    );
+    await expect(
+      handler.execute(new GetAvailabilityUseCase('not-a-date')),
+    ).rejects.toBeInstanceOf(InvalidAvailabilityDateError);
   });
 });

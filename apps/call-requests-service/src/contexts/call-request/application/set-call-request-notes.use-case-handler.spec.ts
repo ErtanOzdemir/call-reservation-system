@@ -3,6 +3,7 @@ import { CallRequest } from '../domain/entities/call-request.entity';
 import { CallRequestNotFoundError } from '../domain/errors/call-request-not-found.error';
 import { CallRequestRepositoryPort } from '../domain/ports/call-request-repository.port';
 import { SetCallRequestNotesUseCase } from './set-call-request-notes.use-case';
+import { SetCallRequestNotesUseCaseHandler } from './set-call-request-notes.use-case-handler';
 
 const CREATED_AT = new Date('2026-08-03T09:00:00+03:00');
 
@@ -18,11 +19,11 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
   }
 
   async create(): Promise<CallRequest> {
-    throw new Error('not used by SetCallRequestNotesUseCase');
+    throw new Error('not used by SetCallRequestNotesUseCaseHandler');
   }
 
   async transition(): Promise<CallRequest | null> {
-    throw new Error('not used by SetCallRequestNotesUseCase');
+    throw new Error('not used by SetCallRequestNotesUseCaseHandler');
   }
 
   async setNotes(id: string, notes: string): Promise<CallRequest | null> {
@@ -38,11 +39,11 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
   }
 
   async findAll(): Promise<CallRequest[]> {
-    throw new Error('not used by SetCallRequestNotesUseCase');
+    throw new Error('not used by SetCallRequestNotesUseCaseHandler');
   }
 
   async findByRequestedByUserId(): Promise<CallRequest[]> {
-    throw new Error('not used by SetCallRequestNotesUseCase');
+    throw new Error('not used by SetCallRequestNotesUseCaseHandler');
   }
 }
 
@@ -61,13 +62,15 @@ function seedRequest(repository: InMemoryCallRequestRepository): void {
   );
 }
 
-describe('SetCallRequestNotesUseCase', () => {
+describe('SetCallRequestNotesUseCaseHandler', () => {
   it('sets the notes on an existing call request and publishes nothing', async () => {
     const repository = new InMemoryCallRequestRepository();
     seedRequest(repository);
-    const useCase = new SetCallRequestNotesUseCase(repository);
+    const handler = new SetCallRequestNotesUseCaseHandler(repository);
 
-    const result = await useCase.execute('req-1', 'Customer asked to reschedule.');
+    const result = await handler.execute(
+      new SetCallRequestNotesUseCase('req-1', 'Customer asked to reschedule.'),
+    );
 
     expect(result.notes).toBe('Customer asked to reschedule.');
   });
@@ -75,20 +78,24 @@ describe('SetCallRequestNotesUseCase', () => {
   it('overwrites existing notes', async () => {
     const repository = new InMemoryCallRequestRepository();
     seedRequest(repository);
-    const useCase = new SetCallRequestNotesUseCase(repository);
+    const handler = new SetCallRequestNotesUseCaseHandler(repository);
 
-    await useCase.execute('req-1', 'First note.');
-    const result = await useCase.execute('req-1', 'Second note.');
+    await handler.execute(
+      new SetCallRequestNotesUseCase('req-1', 'First note.'),
+    );
+    const result = await handler.execute(
+      new SetCallRequestNotesUseCase('req-1', 'Second note.'),
+    );
 
     expect(result.notes).toBe('Second note.');
   });
 
   it('throws if the call request does not exist', async () => {
     const repository = new InMemoryCallRequestRepository();
-    const useCase = new SetCallRequestNotesUseCase(repository);
+    const handler = new SetCallRequestNotesUseCaseHandler(repository);
 
     await expect(
-      useCase.execute('missing', 'Some note.'),
+      handler.execute(new SetCallRequestNotesUseCase('missing', 'Some note.')),
     ).rejects.toBeInstanceOf(CallRequestNotFoundError);
   });
 });

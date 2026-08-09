@@ -29,7 +29,9 @@ export class CallRequest {
     this.scheduledAt = props.scheduledAt;
     this.status = props.status;
     this.requestedByUserId = props.requestedByUserId;
-    this.notes = props.notes;
+    if (props.notes !== undefined) {
+      this.notes = props.notes;
+    }
     this.createdAt = props.createdAt;
   }
 

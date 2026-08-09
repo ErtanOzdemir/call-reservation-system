@@ -4,6 +4,7 @@ import { User } from '../domain/entities/user.entity';
 import { UserAlreadyExistsError } from '../domain/errors/user-already-exists.error';
 import { UserRepositoryPort } from '../domain/ports/user-repository.port';
 import { RegisterUserUseCase } from './register-user.use-case';
+import { RegisterUserUseCaseHandler } from './register-user.use-case-handler';
 
 class InMemoryUserRepository implements UserRepositoryPort {
   users: User[] = [];
@@ -24,7 +25,7 @@ class InMemoryUserRepository implements UserRepositoryPort {
   }
 }
 
-describe('RegisterUserUseCase', () => {
+describe('RegisterUserUseCaseHandler', () => {
   const passwordHasher = {
     hash: jest.fn(async () => 'hashed-password'),
   } as unknown as PasswordHasherService;
@@ -35,14 +36,16 @@ describe('RegisterUserUseCase', () => {
 
   it('hashes and persists a normalized user', async () => {
     const repository = new InMemoryUserRepository();
-    const useCase = new RegisterUserUseCase(repository, passwordHasher);
+    const handler = new RegisterUserUseCaseHandler(repository, passwordHasher);
 
     await expect(
-      useCase.execute({
-        email: ' Admin@Example.com ',
-        password: 'password123',
-        role: Role.ADMIN,
-      }),
+      handler.execute(
+        new RegisterUserUseCase(
+          ' Admin@Example.com ',
+          'password123',
+          Role.ADMIN,
+        ),
+      ),
     ).resolves.toEqual({
       id: '1',
       email: 'admin@example.com',
@@ -57,14 +60,12 @@ describe('RegisterUserUseCase', () => {
     repository.users.push(
       new User('existing-id', 'person@example.com', 'hash', Role.USER),
     );
-    const useCase = new RegisterUserUseCase(repository, passwordHasher);
+    const handler = new RegisterUserUseCaseHandler(repository, passwordHasher);
 
     await expect(
-      useCase.execute({
-        email: 'PERSON@example.com',
-        password: 'password123',
-        role: Role.USER,
-      }),
+      handler.execute(
+        new RegisterUserUseCase('PERSON@example.com', 'password123', Role.USER),
+      ),
     ).rejects.toBeInstanceOf(UserAlreadyExistsError);
     expect(passwordHasher.hash).not.toHaveBeenCalled();
   });

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { CryptoModule } from '../../shared-kernel/crypto/crypto.module';
 import { UserModule } from '../user/user.module';
-import { LoginUseCase } from './application/login.use-case';
+import { LoginUseCaseHandler } from './application/login.use-case-handler';
 import { TOKEN_ISSUER } from './domain/ports/token-issuer.port';
 import { AuthController } from './infrastructure/http/auth.controller';
 import { JwtAuthGuard } from './infrastructure/http/guards/jwt-auth.guard';
@@ -34,7 +34,7 @@ import { JwtTokenIssuerAdapter } from './infrastructure/jwt/jwt-token-issuer.ada
   ],
   controllers: [AuthController],
   providers: [
-    LoginUseCase,
+    LoginUseCaseHandler,
     JwtTokenIssuerAdapter,
     JwtAuthGuard,
     RolesGuard,

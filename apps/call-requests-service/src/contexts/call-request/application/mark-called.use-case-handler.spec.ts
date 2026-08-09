@@ -1,10 +1,11 @@
-import { CallStatus, RoutingKey } from '@call-reservation/shared-types';
+import { CallStatus } from '@call-reservation/shared-types';
 import { CallRequest } from '../domain/entities/call-request.entity';
 import { CallRequestNotFoundError } from '../domain/errors/call-request-not-found.error';
 import { InvalidStateTransitionError } from '../domain/errors/invalid-state-transition.error';
 import { OutboxEvent } from '../domain/outbox-event';
 import { CallRequestRepositoryPort } from '../domain/ports/call-request-repository.port';
-import { ApproveCallUseCase } from './approve-call.use-case';
+import { MarkCalledUseCase } from './mark-called.use-case';
+import { MarkCalledUseCaseHandler } from './mark-called.use-case-handler';
 
 const CREATED_AT = new Date('2026-08-03T09:00:00+03:00');
 
@@ -21,7 +22,7 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
   }
 
   async create(): Promise<CallRequest> {
-    throw new Error('not used by ApproveCallUseCase');
+    throw new Error('not used by MarkCalledUseCaseHandler');
   }
 
   /** Mirrors the Mongo adapter's conditional-match: null if the stored
@@ -29,7 +30,7 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
   async transition(
     callRequest: CallRequest,
     expectedCurrentStatus: CallStatus,
-    event: OutboxEvent,
+    event?: OutboxEvent,
   ): Promise<CallRequest | null> {
     const current = this.requests.get(callRequest.id as string);
 
@@ -42,20 +43,22 @@ class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
       createdAt: current.createdAt ?? CREATED_AT,
     });
     this.requests.set(saved.id as string, saved);
-    this.events.push(event);
+    if (event) {
+      this.events.push(event);
+    }
     return saved;
   }
 
   async setNotes(): Promise<CallRequest | null> {
-    throw new Error('not used by ApproveCallUseCase');
+    throw new Error('not used by MarkCalledUseCaseHandler');
   }
 
   async findAll(): Promise<CallRequest[]> {
-    throw new Error('not used by ApproveCallUseCase');
+    throw new Error('not used by MarkCalledUseCaseHandler');
   }
 
   async findByRequestedByUserId(): Promise<CallRequest[]> {
-    throw new Error('not used by ApproveCallUseCase');
+    throw new Error('not used by MarkCalledUseCaseHandler');
   }
 }
 
@@ -77,58 +80,46 @@ function seedRequest(
   );
 }
 
-describe('ApproveCallUseCase', () => {
-  it('approves a requested call and publishes call.approved', async () => {
+describe('MarkCalledUseCaseHandler', () => {
+  it('marks a scheduled call as called without publishing an event', async () => {
     const repository = new InMemoryCallRequestRepository();
-    seedRequest(repository, CallStatus.REQUESTED);
-    const useCase = new ApproveCallUseCase(repository);
+    seedRequest(repository, CallStatus.SCHEDULED);
+    const handler = new MarkCalledUseCaseHandler(repository);
 
-    const result = await useCase.execute('req-1');
+    const result = await handler.execute(new MarkCalledUseCase('req-1'));
 
-    expect(result.status).toBe(CallStatus.SCHEDULED);
-    expect(repository.events).toEqual([
-      {
-        routingKey: RoutingKey.CallApproved,
-        payload: {
-          requestId: 'req-1',
-          email: 'customer@example.com',
-          scheduledAt: '2026-08-10T07:00:00.000Z',
-          approvedAt: expect.any(String),
-        },
-      },
-    ]);
+    expect(result.status).toBe(CallStatus.CALLED);
+    expect(repository.events).toEqual([]);
   });
 
   it('throws if the call request does not exist', async () => {
     const repository = new InMemoryCallRequestRepository();
-    const useCase = new ApproveCallUseCase(repository);
+    const handler = new MarkCalledUseCaseHandler(repository);
 
-    await expect(useCase.execute('missing')).rejects.toBeInstanceOf(
-      CallRequestNotFoundError,
-    );
+    await expect(
+      handler.execute(new MarkCalledUseCase('missing')),
+    ).rejects.toBeInstanceOf(CallRequestNotFoundError);
   });
 
-  it('rejects approving an already-rejected request', async () => {
+  it('rejects marking a request as called before it is scheduled', async () => {
     const repository = new InMemoryCallRequestRepository();
-    seedRequest(repository, CallStatus.REJECTED);
-    const useCase = new ApproveCallUseCase(repository);
+    seedRequest(repository, CallStatus.REQUESTED);
+    const handler = new MarkCalledUseCaseHandler(repository);
 
-    await expect(useCase.execute('req-1')).rejects.toBeInstanceOf(
-      InvalidStateTransitionError,
-    );
+    await expect(
+      handler.execute(new MarkCalledUseCase('req-1')),
+    ).rejects.toBeInstanceOf(InvalidStateTransitionError);
   });
 
   it('rejects if the request was transitioned by someone else between the read and the write', async () => {
     const repository = new InMemoryCallRequestRepository();
-    seedRequest(repository, CallStatus.REQUESTED);
-    const useCase = new ApproveCallUseCase(repository);
-    // Simulate a concurrent reject winning the race right after our read.
-    jest
-      .spyOn(repository, 'transition')
-      .mockResolvedValueOnce(null);
+    seedRequest(repository, CallStatus.SCHEDULED);
+    const handler = new MarkCalledUseCaseHandler(repository);
+    // Simulate a concurrent cancel winning the race right after our read.
+    jest.spyOn(repository, 'transition').mockResolvedValueOnce(null);
 
-    await expect(useCase.execute('req-1')).rejects.toBeInstanceOf(
-      InvalidStateTransitionError,
-    );
+    await expect(
+      handler.execute(new MarkCalledUseCase('req-1')),
+    ).rejects.toBeInstanceOf(InvalidStateTransitionError);
   });
 });

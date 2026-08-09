@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { RabbitMqModule } from '../../shared-kernel/rabbitmq/rabbitmq.module';
-import { ApproveCallUseCase } from './application/approve-call.use-case';
-import { CancelCallUseCase } from './application/cancel-call.use-case';
-import { ListCallRequestsUseCase } from './application/list-call-requests.use-case';
-import { ListMyCallRequestsUseCase } from './application/list-my-call-requests.use-case';
-import { MarkCalledUseCase } from './application/mark-called.use-case';
-import { RejectCallUseCase } from './application/reject-call.use-case';
-import { ReserveCallUseCase } from './application/reserve-call.use-case';
-import { SetCallRequestNotesUseCase } from './application/set-call-request-notes.use-case';
+import { ApproveCallUseCaseHandler } from './application/approve-call.use-case-handler';
+import { CancelCallUseCaseHandler } from './application/cancel-call.use-case-handler';
+import { ListCallRequestsUseCaseHandler } from './application/list-call-requests.use-case-handler';
+import { ListMyCallRequestsUseCaseHandler } from './application/list-my-call-requests.use-case-handler';
+import { MarkCalledUseCaseHandler } from './application/mark-called.use-case-handler';
+import { RejectCallUseCaseHandler } from './application/reject-call.use-case-handler';
+import { ReserveCallUseCaseHandler } from './application/reserve-call.use-case-handler';
+import { SetCallRequestNotesUseCaseHandler } from './application/set-call-request-notes.use-case-handler';
 import { CALL_REQUEST_REPOSITORY } from './domain/ports/call-request-repository.port';
 import { AdminCallRequestsController } from './infrastructure/http/admin-call-requests.controller';
 import { CallRequestsController } from './infrastructure/http/call-requests.controller';
@@ -28,14 +28,14 @@ import { OutboxDispatcherService } from './infrastructure/outbox/outbox-dispatch
   ],
   controllers: [CallRequestsController, AdminCallRequestsController],
   providers: [
-    ReserveCallUseCase,
-    ApproveCallUseCase,
-    RejectCallUseCase,
-    CancelCallUseCase,
-    MarkCalledUseCase,
-    SetCallRequestNotesUseCase,
-    ListCallRequestsUseCase,
-    ListMyCallRequestsUseCase,
+    ReserveCallUseCaseHandler,
+    ApproveCallUseCaseHandler,
+    RejectCallUseCaseHandler,
+    CancelCallUseCaseHandler,
+    MarkCalledUseCaseHandler,
+    SetCallRequestNotesUseCaseHandler,
+    ListCallRequestsUseCaseHandler,
+    ListMyCallRequestsUseCaseHandler,
     CallRequestRepositoryAdapter,
     OutboxDispatcherService,
     {
