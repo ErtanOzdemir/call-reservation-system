@@ -1,61 +1,19 @@
 import { CallStatus } from '@call-reservation/shared-types';
-import { CallRequest } from '../domain/entities/call-request.entity';
-import { CallRequestRepositoryPort } from '../domain/ports/call-request-repository.port';
 import { ListCallRequestsUseCaseHandler } from './list-call-requests.use-case-handler';
-
-const CREATED_AT = new Date('2026-08-03T09:00:00+03:00');
-
-class InMemoryCallRequestRepository implements CallRequestRepositoryPort {
-  requests: CallRequest[] = [];
-
-  async findById(): Promise<CallRequest | null> {
-    throw new Error('not used by ListCallRequestsUseCaseHandler');
-  }
-
-  async hasConflictingRequest(): Promise<boolean> {
-    throw new Error('not used by ListCallRequestsUseCaseHandler');
-  }
-
-  async create(): Promise<CallRequest> {
-    throw new Error('not used by ListCallRequestsUseCaseHandler');
-  }
-
-  async transition(): Promise<CallRequest | null> {
-    throw new Error('not used by ListCallRequestsUseCaseHandler');
-  }
-
-  async setNotes(): Promise<CallRequest | null> {
-    throw new Error('not used by ListCallRequestsUseCaseHandler');
-  }
-
-  async findByRequestedByUserId(): Promise<CallRequest[]> {
-    throw new Error('not used by ListCallRequestsUseCaseHandler');
-  }
-
-  async findAll(): Promise<CallRequest[]> {
-    return this.requests;
-  }
-}
-
-function makeRequest(id: string, status: CallStatus): CallRequest {
-  return new CallRequest({
-    id,
-    email: 'customer@example.com',
-    phoneNumber: '+905551234567',
-    scheduledAt: new Date('2026-08-10T10:00:00+03:00'),
-    status,
-    requestedByUserId: 'user-1',
-    createdAt: CREATED_AT,
-  });
-}
+import {
+  InMemoryCallRequestRepository,
+  makeCallRequest,
+} from './testing/in-memory-call-request-repository';
 
 describe('ListCallRequestsUseCaseHandler', () => {
   it('returns every call request from the repository', async () => {
     const repository = new InMemoryCallRequestRepository();
-    repository.requests = [
-      makeRequest('req-1', CallStatus.REQUESTED),
-      makeRequest('req-2', CallStatus.SCHEDULED),
-    ];
+    repository.seed(
+      makeCallRequest({ id: 'req-1', status: CallStatus.REQUESTED }),
+    );
+    repository.seed(
+      makeCallRequest({ id: 'req-2', status: CallStatus.SCHEDULED }),
+    );
     const handler = new ListCallRequestsUseCaseHandler(repository);
 
     const result = await handler.execute();
