@@ -2,21 +2,17 @@ import {
   CALL_EVENTS_EXCHANGE,
   CallApprovedEvent,
   CallCanceledEvent,
-  CallRequestedEvent,
   CallStatus,
   RoutingKey,
 } from '@call-reservation/shared-types';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConsumeMessage } from 'amqplib';
+import { randomUUID } from 'node:crypto';
 import { RabbitMqConnectionService } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
 import { ScheduledCallRepository } from '../state/scheduled-call.repository';
 
 const SCHEDULER_QUEUE = 'scheduler.call-events';
-const BOUND_ROUTING_KEYS = [
-  RoutingKey.CallRequested,
-  RoutingKey.CallApproved,
-  RoutingKey.CallCanceled,
-];
+const BOUND_ROUTING_KEYS = [RoutingKey.CallApproved, RoutingKey.CallCanceled];
 const REMINDER_LEAD_TIME_MS = 2 * 60 * 60 * 1000;
 
 @Injectable()
@@ -68,9 +64,6 @@ export class CallEventsConsumer implements OnModuleInit {
 
   private async handleMessage(message: ConsumeMessage): Promise<void> {
     switch (message.fields.routingKey) {
-      case RoutingKey.CallRequested:
-        await this.handleCallRequested(message);
-        break;
       case RoutingKey.CallApproved:
         await this.handleCallApproved(message);
         break;
@@ -85,22 +78,6 @@ export class CallEventsConsumer implements OnModuleInit {
 
     this.rabbitMq.channel.ack(message);
   }
-
-  private async handleCallRequested(message: ConsumeMessage): Promise<void> {
-    const event = JSON.parse(
-      message.content.toString('utf8'),
-    ) as CallRequestedEvent;
-
-    await this.scheduledCallRepository.upsert({
-      requestId: event.requestId,
-      email: event.email,
-      scheduledAt: new Date(event.scheduledAt),
-      status: CallStatus.REQUESTED,
-    });
-
-    this.logger.log(`Recorded call request ${event.requestId}.`);
-  }
-
 
   private async handleCallApproved(message: ConsumeMessage): Promise<void> {
     const event = JSON.parse(
@@ -119,7 +96,7 @@ export class CallEventsConsumer implements OnModuleInit {
         scheduledAt,
         status: CallStatus.SCHEDULED,
       },
-      { scheduleReminderAt: targetFireAt },
+      { scheduleReminderAt: targetFireAt, eventId: randomUUID() },
     );
 
     this.logger.log(`Marked call request ${event.requestId} as scheduled.`);

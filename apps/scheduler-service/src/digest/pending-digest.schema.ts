@@ -12,6 +12,11 @@ export class PendingDigestRecord {
   @Prop({ required: true, unique: true, index: true })
   date!: string;
 
+  /** Carried onto the wire with the payload — lets a consumer dedupe the
+   * same logical digest if it ever gets dispatched more than once. */
+  @Prop({ required: true })
+  eventId!: string;
+
   @Prop({ required: true, type: Object })
   payload!: Record<string, unknown>;
 }

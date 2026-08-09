@@ -21,6 +21,7 @@ describe('CancelCallUseCaseHandler', () => {
     expect(result.status).toBe(CallStatus.CANCELED);
     expect(repository.events).toEqual([
       {
+        eventId: expect.any(String),
         routingKey: RoutingKey.CallCanceled,
         payload: {
           requestId: 'req-1',

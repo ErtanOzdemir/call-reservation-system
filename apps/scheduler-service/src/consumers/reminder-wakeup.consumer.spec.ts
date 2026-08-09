@@ -100,7 +100,9 @@ describe('ReminderWakeupConsumer', () => {
     await consumer.onModuleInit();
 
     const message = {
-      content: Buffer.from(JSON.stringify({ requestId: 'req-1' })),
+      content: Buffer.from(
+        JSON.stringify({ requestId: 'req-1', eventId: 'event-1' }),
+      ),
     };
     channel.deliver(message);
     await flushMicrotasks();
@@ -113,9 +115,45 @@ describe('ReminderWakeupConsumer', () => {
         customerEmail: 'customer@example.com',
         adminEmail: 'admin@call-reservation.local',
         scheduledAt: '2026-08-10T07:00:00.000Z',
+        eventId: 'event-1',
       },
     );
     expect(channel.ack).toHaveBeenCalledWith(message);
+  });
+
+  it('reuses the wakeup eventId on redelivery, so a duplicate wakeup produces a recognizably duplicate reminder.due', async () => {
+    const channel = createChannelMock();
+    const rabbitMq = createRabbitMqMock(channel);
+    const scheduledCall: ScheduledCallInput = {
+      requestId: 'req-1',
+      email: 'customer@example.com',
+      scheduledAt: new Date('2026-08-10T10:00:00+03:00'),
+      status: CallStatus.SCHEDULED,
+    };
+    const repository = {
+      findByRequestId: jest.fn().mockResolvedValue(scheduledCall),
+    } as unknown as ScheduledCallRepository;
+    const consumer = new ReminderWakeupConsumer(
+      rabbitMq,
+      repository,
+      createConfigServiceMock(),
+    );
+    await consumer.onModuleInit();
+
+    const redeliveredMessage = {
+      content: Buffer.from(
+        JSON.stringify({ requestId: 'req-1', eventId: 'event-1' }),
+      ),
+    };
+    channel.deliver(redeliveredMessage);
+    await flushMicrotasks();
+    channel.deliver(redeliveredMessage);
+    await flushMicrotasks();
+
+    expect(rabbitMq.publish).toHaveBeenCalledTimes(2);
+    const [firstCall, secondCall] = jest.mocked(rabbitMq.publish).mock.calls;
+    expect(firstCall[2]).toMatchObject({ eventId: 'event-1' });
+    expect(secondCall[2]).toMatchObject({ eventId: 'event-1' });
   });
 
   it('drops the wakeup without publishing if the call is no longer scheduled', async () => {

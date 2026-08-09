@@ -51,6 +51,7 @@ export class ReserveCallUseCaseHandler {
     };
 
     return this.callRequestRepository.create(callRequest, {
+      eventId: randomUUID(),
       routingKey: RoutingKey.CallRequested,
       payload: { ...event },
     });

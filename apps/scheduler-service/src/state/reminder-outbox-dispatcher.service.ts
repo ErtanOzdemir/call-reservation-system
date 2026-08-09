@@ -114,7 +114,7 @@ export class ReminderOutboxDispatcherService
     await this.rabbitMq.publish(
       REMINDER_DELAY_EXCHANGE,
       REMINDER_WAKEUP_ROUTING_KEY,
-      { requestId: reminder.requestId },
+      { requestId: reminder.requestId, eventId: reminder.eventId },
       { headers: { 'x-delay': delayMs } },
     );
 

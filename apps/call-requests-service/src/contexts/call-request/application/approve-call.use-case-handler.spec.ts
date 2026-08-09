@@ -21,6 +21,7 @@ describe('ApproveCallUseCaseHandler', () => {
     expect(result.status).toBe(CallStatus.SCHEDULED);
     expect(repository.events).toEqual([
       {
+        eventId: expect.any(String),
         routingKey: RoutingKey.CallApproved,
         payload: {
           requestId: 'req-1',

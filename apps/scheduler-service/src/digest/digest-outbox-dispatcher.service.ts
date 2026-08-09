@@ -87,13 +87,12 @@ export class DigestOutboxDispatcherService
   }
 
   private async dispatchPendingDigest(
-    digest: Pick<PendingDigestRecord, 'date' | 'payload'>,
+    digest: Pick<PendingDigestRecord, 'date' | 'eventId' | 'payload'>,
   ): Promise<void> {
-    await this.rabbitMq.publish(
-      CALL_EVENTS_EXCHANGE,
-      RoutingKey.DigestDue,
-      digest.payload,
-    );
+    await this.rabbitMq.publish(CALL_EVENTS_EXCHANGE, RoutingKey.DigestDue, {
+      ...digest.payload,
+      eventId: digest.eventId,
+    });
 
     // Publish first, delete after: on a crash or duplicate delivery in
     // between, the worst case is the digest going out twice, which is far

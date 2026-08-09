@@ -5,6 +5,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Cron } from '@nestjs/schedule';
 import { DateTime } from 'luxon';
 import { Model } from 'mongoose';
+import { randomUUID } from 'node:crypto';
 import { ScheduledCallRepository } from '../state/scheduled-call.repository';
 import { PendingDigestDocument, PendingDigestRecord } from './pending-digest.schema';
 
@@ -71,6 +72,7 @@ export class DailyDigestService {
     try {
       await this.pendingDigestModel.create({
         date: event.date,
+        eventId: randomUUID(),
         payload: { ...event },
       });
       this.logger.log(

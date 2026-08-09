@@ -31,7 +31,7 @@ flowchart LR
     Relay1 -->|publish| MQ{{"RabbitMQ<br/>call.events topic exchange"}}
 
     MQ -->|"call.requested<br/>call.approved<br/>call.rejected<br/>call.canceled"| COM
-    MQ -->|"call.requested<br/>call.approved<br/>call.canceled"| SCH
+    MQ -->|"call.approved<br/>call.canceled"| SCH
 
     SCH["Scheduler Service<br/>only cron/interval owner"] -->|"own write:<br/>pendingReminder"| SDB[("MongoDB<br/>scheduler_state db")]
     SDB -.->|"change stream"| Relay2["Outbox Dispatcher #2<br/>Scheduler's reminder relay"]
@@ -45,7 +45,8 @@ flowchart LR
 
     MQ -->|"reminder.due<br/>digest.due"| COM
 
-    COM["Communication Service<br/>only sender of email<br/>templates + SMTP"] --> MH[["MailHog<br/>mock inbox"]]
+    COM["Communication Service<br/>sender of email<br/>templates + SMTP<br/>dedupes by eventId"] -->|"claim / release<br/>by eventId"| CDB[("MongoDB<br/>communication db")]
+    COM --> MH[["MailHog<br/>mock inbox"]]
 ```
 
 Notes on the diagram:
@@ -60,10 +61,14 @@ Notes on the diagram:
   directly from the exchange. They are not routed through Scheduler.
   Communication Service binds its own queue to these routing keys because it
   only needs to react to the event, not hold any state.
-- Scheduler binds to a narrower set of routing keys — `call.requested`,
-  `call.approved`, `call.canceled` — which is what it needs to build its own
-  local state. It does not bind `call.rejected`, since a rejected request was
-  never scheduled and requires no reminder.
+- Scheduler binds to a narrower set of routing keys — `call.approved`,
+  `call.canceled` — which is what it needs to build its own local state.
+  It does not bind `call.requested` or `call.rejected`: a request that's
+  still pending, or was rejected, was never scheduled and needs no reminder
+  or digest entry, so there's nothing for Scheduler to do with either event.
+  `handleCallApproved`'s `upsert(..., {upsert:true})` creates Scheduler's
+  local document from scratch on approval — it doesn't depend on an earlier
+  `call.requested` write.
 - Scheduler also runs its own outbox dispatcher (`ReminderOutboxDispatcherService`,
   Outbox Dispatcher #2 above), independent from Call Requests Service's. When
   it consumes `call.approved`, it writes `pendingReminder{ targetFireAt }`
@@ -87,6 +92,16 @@ Notes on the diagram:
   cron job with a few immediate retries and no persistence; that meant a
   broker outage spanning the retry window silently dropped the digest until
   the next day.
+- Every event on the diagram carries an `eventId` (a `randomUUID()`, minted
+  wherever that event is first written to an outbox — it is not part of the
+  event's own TypeScript type, it's merged onto the JSON payload at publish
+  time). `reminder.due` is the one exception worth calling out: rather than
+  minting its own, it reuses `reminder.wakeup`'s `eventId` — see
+  [`reminder-wakeup.consumer.ts`](apps/scheduler-service/src/consumers/reminder-wakeup.consumer.ts)
+  — so that a redelivered wakeup still produces a `reminder.due` Communication
+  Service can recognize as the same event. Communication Service is the only
+  consumer that uses `eventId`: see "Communication Service dedupes emails by
+  eventId" below.
 
 ## Why hexagonal architecture — only in Call Requests Service
 
@@ -242,6 +257,32 @@ rendered message. See `apps/communication-service/src/templates/`.
   so the email content can be inspected as a rendered message (from, to,
   subject, body) rather than only a log line. MailHog runs in the same
   Docker Compose stack, so this adds no extra setup.
+
+- **Communication Service dedupes emails by `eventId`.** Every other
+  consumer in this system (Scheduler's `upsert(requestId, ...)`) is
+  naturally idempotent under RabbitMQ's at-least-once redelivery, because
+  its side effect is overwriting state — replaying the same event twice
+  produces the same document either way. Sending an email has no such
+  natural idempotency: replaying the same event twice sends the email
+  twice. `CallEventsConsumer` ([`apps/communication-service/src/consumers/call-events.consumer.ts`](apps/communication-service/src/consumers/call-events.consumer.ts))
+  reads the wire-level `eventId` off the incoming payload and claims it in a
+  `processed-events` Mongo collection (`eventId` unique index) *before*
+  rendering/sending — a claim that fails with a duplicate-key error means
+  this event was already handled, so the message is acked without sending
+  anything again. If sending fails after a successful claim, the claim is
+  released so the inevitable redelivery can actually retry instead of being
+  skipped as a false duplicate for an email that never went out. This also
+  closes a gap that existed before Scheduler even had an `eventId` to
+  forward: `reminder.due` didn't carry one at all. It now reuses the
+  `eventId` off the `reminder.wakeup` message that triggered it
+  ([`apps/scheduler-service/src/consumers/reminder-wakeup.consumer.ts`](apps/scheduler-service/src/consumers/reminder-wakeup.consumer.ts))
+  rather than minting a fresh one per publish — a redelivered wakeup (the
+  broker's at-least-once guarantee, e.g. the process dying after a
+  successful publish but before the ack lands) reprocesses from scratch and
+  would otherwise produce a second `reminder.due` with a different `eventId`,
+  invisible to Communication Service's dedup check. Reusing the id closes
+  that hole: both publishes carry the same `eventId`, so the second is
+  correctly recognized as a duplicate and skipped.
 
 ## Folder structure
 

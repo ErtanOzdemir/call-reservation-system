@@ -6,6 +6,8 @@ describe('configuration', () => {
   beforeEach(() => {
     process.env = {
       ...originalEnvironment,
+      MONGODB_URI:
+        'mongodb://localhost:27017/communication?replicaSet=rs0&directConnection=true',
       RABBITMQ_URL:
         'amqp://reservation:reservation@localhost:5672/call-reservation',
       SMTP_HOST: 'localhost',
@@ -33,6 +35,12 @@ describe('configuration', () => {
 
   it('rejects an invalid port', () => {
     process.env.PORT = '70000';
+
+    expect(configuration).toThrow();
+  });
+
+  it('rejects a missing MongoDB URL', () => {
+    delete process.env.MONGODB_URI;
 
     expect(configuration).toThrow();
   });

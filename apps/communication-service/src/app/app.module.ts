@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import configuration from '../config/configuration';
 import { ConsumersModule } from '../consumers/consumers.module';
+import { MongoConnectionModule } from '../shared-kernel/mongo-connection.module';
 import { RabbitMqModule } from '../shared-kernel/rabbitmq/rabbitmq.module';
 
 @Module({
@@ -12,6 +13,7 @@ import { RabbitMqModule } from '../shared-kernel/rabbitmq/rabbitmq.module';
       isGlobal: true,
       load: [configuration],
     }),
+    MongoConnectionModule,
     RabbitMqModule,
     ConsumersModule,
   ],

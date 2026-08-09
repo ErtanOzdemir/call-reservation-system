@@ -1,5 +1,6 @@
 import { CallCanceledEvent, CallStatus, RoutingKey } from '@call-reservation/shared-types';
 import { Inject, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { CallRequest } from '../domain/entities/call-request.entity';
 import { CallRequestNotFoundError } from '../domain/errors/call-request-not-found.error';
 import { InvalidStateTransitionError } from '../domain/errors/invalid-state-transition.error';
@@ -41,7 +42,7 @@ export class CancelCallUseCaseHandler {
     const savedCallRequest = await this.callRequestRepository.transition(
       canceledCallRequest,
       callRequest.status,
-      { routingKey: RoutingKey.CallCanceled, payload: { ...event } },
+      { eventId: randomUUID(), routingKey: RoutingKey.CallCanceled, payload: { ...event } },
     );
 
     if (!savedCallRequest) {

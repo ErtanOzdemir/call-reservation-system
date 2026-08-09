@@ -70,6 +70,7 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
         requestedByUserId: callRequest.requestedByUserId,
         pendingEvents: [
           {
+            eventId: event.eventId,
             routingKey: event.routingKey,
             payload: event.payload,
             occurredAt: new Date(),
@@ -112,6 +113,7 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
           ...(event && {
             $push: {
               pendingEvents: {
+                eventId: event.eventId,
                 routingKey: event.routingKey,
                 payload: event.payload,
                 occurredAt: new Date(),

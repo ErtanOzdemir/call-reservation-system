@@ -7,6 +7,11 @@ export class OutboxEventRecord {
   /** Own id so the dispatcher can $pull exactly this event once delivered. */
   _id?: Types.ObjectId;
 
+  /** Carried onto the wire with the payload — lets a consumer dedupe the
+   * same logical event if it ever gets delivered more than once. */
+  @Prop({ required: true })
+  eventId!: string;
+
   @Prop({ required: true })
   routingKey!: string;
 

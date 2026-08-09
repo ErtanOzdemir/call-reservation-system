@@ -57,6 +57,7 @@ describe('DailyDigestService', () => {
     );
     expect(create).toHaveBeenCalledWith({
       date: tomorrow.toISODate(),
+      eventId: expect.any(String),
       payload: {
         adminEmail: 'admin@call-reservation.local',
         date: tomorrow.toISODate(),

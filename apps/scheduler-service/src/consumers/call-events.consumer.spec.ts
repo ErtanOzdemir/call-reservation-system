@@ -45,7 +45,7 @@ function messageFor(routingKey: string, payload: unknown): FakeMessage {
 }
 
 describe('CallEventsConsumer', () => {
-  it('binds one queue to call.requested, call.approved, and call.canceled', async () => {
+  it('binds one queue to call.approved and call.canceled', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const repository = {
@@ -61,11 +61,6 @@ describe('CallEventsConsumer', () => {
     expect(channel.bindQueue).toHaveBeenCalledWith(
       'scheduler.call-events',
       CALL_EVENTS_EXCHANGE,
-      RoutingKey.CallRequested,
-    );
-    expect(channel.bindQueue).toHaveBeenCalledWith(
-      'scheduler.call-events',
-      CALL_EVENTS_EXCHANGE,
       RoutingKey.CallApproved,
     );
     expect(channel.bindQueue).toHaveBeenCalledWith(
@@ -73,33 +68,6 @@ describe('CallEventsConsumer', () => {
       CALL_EVENTS_EXCHANGE,
       RoutingKey.CallCanceled,
     );
-  });
-
-  it('records a REQUESTED call on call.requested', async () => {
-    const channel = createChannelMock();
-    const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const upsert = jest.fn().mockResolvedValue(undefined);
-    const repository = { upsert } as unknown as ScheduledCallRepository;
-    const consumer = new CallEventsConsumer(rabbitMq, repository);
-    await consumer.onModuleInit();
-
-    const message = messageFor(RoutingKey.CallRequested, {
-      requestId: 'req-1',
-      email: 'customer@example.com',
-      phoneNumber: '+905551234567',
-      scheduledAt: '2026-08-10T10:00:00+03:00',
-      requestedByUserId: 'user-1',
-    });
-    channel.deliver(message);
-    await flushMicrotasks();
-
-    expect(upsert).toHaveBeenCalledWith({
-      requestId: 'req-1',
-      email: 'customer@example.com',
-      scheduledAt: new Date('2026-08-10T10:00:00+03:00'),
-      status: CallStatus.REQUESTED,
-    });
-    expect(channel.ack).toHaveBeenCalledWith(message);
   });
 
   it('marks the call SCHEDULED and queues a reminder wakeup in the same write on call.approved', async () => {
@@ -127,7 +95,10 @@ describe('CallEventsConsumer', () => {
         scheduledAt,
         status: CallStatus.SCHEDULED,
       },
-      { scheduleReminderAt: new Date('2026-08-10T08:00:00+03:00') },
+      {
+        scheduleReminderAt: new Date('2026-08-10T08:00:00+03:00'),
+        eventId: expect.any(String),
+      },
     );
     expect(channel.ack).toHaveBeenCalledWith(message);
     // Nothing gets published directly anymore — that's
@@ -179,12 +150,11 @@ describe('CallEventsConsumer', () => {
     const consumer = new CallEventsConsumer(rabbitMq, repository);
     await consumer.onModuleInit();
 
-    const message = messageFor(RoutingKey.CallRequested, {
+    const message = messageFor(RoutingKey.CallApproved, {
       requestId: 'req-1',
       email: 'customer@example.com',
-      phoneNumber: '+905551234567',
       scheduledAt: '2026-08-10T10:00:00+03:00',
-      requestedByUserId: 'user-1',
+      approvedAt: '2026-08-08T09:00:00+03:00',
     });
     channel.deliver(message);
     await flushMicrotasks();

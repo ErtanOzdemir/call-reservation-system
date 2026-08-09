@@ -84,7 +84,10 @@ export class OutboxDispatcherService implements OnModuleInit, OnModuleDestroy {
     request: Pick<CallRequestRecord, 'id' | 'pendingEvents'>,
   ): Promise<void> {
     for (const event of request.pendingEvents) {
-      await this.rabbitMq.publish(event.routingKey, event.payload);
+      await this.rabbitMq.publish(event.routingKey, {
+        ...event.payload,
+        eventId: event.eventId,
+      });
 
       await this.callRequestModel
         .updateOne(

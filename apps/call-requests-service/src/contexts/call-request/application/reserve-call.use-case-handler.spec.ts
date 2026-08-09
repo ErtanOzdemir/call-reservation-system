@@ -45,6 +45,7 @@ describe('ReserveCallUseCaseHandler', () => {
     expect(repository.requests.size).toBe(1);
     expect(repository.events).toEqual([
       {
+        eventId: expect.any(String),
         routingKey: RoutingKey.CallRequested,
         payload: {
           requestId: result.id,

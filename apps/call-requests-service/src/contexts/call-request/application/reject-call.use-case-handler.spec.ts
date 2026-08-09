@@ -21,6 +21,7 @@ describe('RejectCallUseCaseHandler', () => {
     expect(result.status).toBe(CallStatus.REJECTED);
     expect(repository.events).toEqual([
       {
+        eventId: expect.any(String),
         routingKey: RoutingKey.CallRejected,
         payload: {
           requestId: 'req-1',

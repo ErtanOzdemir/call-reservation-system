@@ -10,6 +10,7 @@ import {
 } from '@call-reservation/shared-types';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConsumeMessage } from 'amqplib';
+import { ProcessedEventRepository } from '../idempotency/processed-event.repository';
 import { EmailSenderService } from '../shared-kernel/email/email-sender.service';
 import { EmailMessage } from '../shared-kernel/email/email-message';
 import { RabbitMqConnectionService } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
@@ -38,6 +39,7 @@ export class CallEventsConsumer implements OnModuleInit {
   constructor(
     private readonly rabbitMq: RabbitMqConnectionService,
     private readonly emailSender: EmailSenderService,
+    private readonly processedEvents: ProcessedEventRepository,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -77,8 +79,35 @@ export class CallEventsConsumer implements OnModuleInit {
 
   private async handleMessage(message: ConsumeMessage): Promise<void> {
     const payload: unknown = JSON.parse(message.content.toString('utf8'));
+    // Not part of any event's domain type — merged onto the wire at
+    // publish time by the sending outbox, so it's read off the raw payload.
+    const { eventId } = payload as { eventId?: string };
 
-    switch (message.fields.routingKey) {
+    if (eventId && !(await this.processedEvents.claim(eventId))) {
+      this.logger.log(
+        `Skipping already-processed event ${eventId} ("${message.fields.routingKey}").`,
+      );
+      this.rabbitMq.channel.ack(message);
+      return;
+    }
+
+    try {
+      await this.dispatch(message.fields.routingKey, payload);
+    } catch (error) {
+      // Release the claim so a redelivery (triggered by the nack below,
+      // one level up) can actually retry instead of being skipped as a
+      // false duplicate for an email that never went out.
+      if (eventId) {
+        await this.processedEvents.release(eventId);
+      }
+      throw error;
+    }
+
+    this.rabbitMq.channel.ack(message);
+  }
+
+  private async dispatch(routingKey: string, payload: unknown): Promise<void> {
+    switch (routingKey) {
       case RoutingKey.CallRequested:
         await this.send(
           renderCallRequestedEmail(payload as CallRequestedEvent),
@@ -103,11 +132,9 @@ export class CallEventsConsumer implements OnModuleInit {
         break;
       default:
         this.logger.warn(
-          `No handler for routing key "${message.fields.routingKey}"; dropping it.`,
+          `No handler for routing key "${routingKey}"; dropping it.`,
         );
     }
-
-    this.rabbitMq.channel.ack(message);
   }
 
   private async send(email: EmailMessage): Promise<void> {

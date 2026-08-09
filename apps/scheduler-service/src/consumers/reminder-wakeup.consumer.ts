@@ -18,6 +18,7 @@ const REMINDER_WAKEUP_QUEUE = 'scheduler.reminder-wakeup';
 
 interface WakeupPayload {
   requestId: string;
+  eventId: string;
 }
 
 @Injectable()
@@ -64,7 +65,7 @@ export class ReminderWakeupConsumer implements OnModuleInit {
   }
 
   private async handleMessage(message: ConsumeMessage): Promise<void> {
-    const { requestId } = JSON.parse(
+    const { requestId, eventId } = JSON.parse(
       message.content.toString('utf8'),
     ) as WakeupPayload;
 
@@ -84,11 +85,17 @@ export class ReminderWakeupConsumer implements OnModuleInit {
         scheduledAt: scheduledCall.scheduledAt.toISOString(),
       };
 
+      // Reuse the wakeup's eventId rather than minting a fresh one: if this
+      // wakeup gets redelivered (broker-level at-least-once), handleMessage
+      // runs again and republishes reminder.due — carrying the same eventId
+      // both times lets Communication Service's inbox recognize the second
+      // publish as a duplicate instead of a new event.
       await this.rabbitMq.publish(
         CALL_EVENTS_EXCHANGE,
         RoutingKey.ReminderDue,
         {
           ...event,
+          eventId,
         },
       );
 

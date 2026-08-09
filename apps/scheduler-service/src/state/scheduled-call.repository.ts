@@ -27,12 +27,13 @@ export class ScheduledCallRepository {
    */
   async upsert(
     record: ScheduledCallInput,
-    options?: { scheduleReminderAt: Date },
+    options?: { scheduleReminderAt: Date; eventId: string },
   ): Promise<void> {
     const fieldsToSet: Record<string, unknown> = { ...record };
 
     if (options) {
       fieldsToSet.pendingReminder = {
+        eventId: options.eventId,
         requestId: record.requestId,
         targetFireAt: options.scheduleReminderAt,
       };

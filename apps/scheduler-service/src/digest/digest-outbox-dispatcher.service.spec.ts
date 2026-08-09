@@ -32,7 +32,11 @@ function flushMicrotasks(): Promise<void> {
 describe('DigestOutboxDispatcherService', () => {
   it('dispatches a digest already pending at startup and deletes it', async () => {
     const model = createModelMock([
-      { date: '2026-08-10', payload: { adminEmail: 'admin@x.com', date: '2026-08-10', calls: [] } },
+      {
+        date: '2026-08-10',
+        eventId: 'event-10',
+        payload: { adminEmail: 'admin@x.com', date: '2026-08-10', calls: [] },
+      },
     ]);
     const rabbitMq = { publish: jest.fn().mockResolvedValue(undefined) } as unknown as RabbitMqConnectionService;
     const service = new DigestOutboxDispatcherService(
@@ -45,7 +49,7 @@ describe('DigestOutboxDispatcherService', () => {
     expect(rabbitMq.publish).toHaveBeenCalledWith(
       CALL_EVENTS_EXCHANGE,
       RoutingKey.DigestDue,
-      { adminEmail: 'admin@x.com', date: '2026-08-10', calls: [] },
+      { adminEmail: 'admin@x.com', date: '2026-08-10', calls: [], eventId: 'event-10' },
     );
     expect(model.deleteOne).toHaveBeenCalledWith({ date: '2026-08-10' });
   });
@@ -62,6 +66,7 @@ describe('DigestOutboxDispatcherService', () => {
     model.changeStreamListeners['change']({
       fullDocument: {
         date: '2026-08-11',
+        eventId: 'event-11',
         payload: { adminEmail: 'admin@x.com', date: '2026-08-11', calls: [] },
       },
     });
@@ -70,14 +75,18 @@ describe('DigestOutboxDispatcherService', () => {
     expect(rabbitMq.publish).toHaveBeenCalledWith(
       CALL_EVENTS_EXCHANGE,
       RoutingKey.DigestDue,
-      { adminEmail: 'admin@x.com', date: '2026-08-11', calls: [] },
+      { adminEmail: 'admin@x.com', date: '2026-08-11', calls: [], eventId: 'event-11' },
     );
     expect(model.deleteOne).toHaveBeenCalledWith({ date: '2026-08-11' });
   });
 
   it('does not delete the pending digest if the broker publish fails', async () => {
     const model = createModelMock([
-      { date: '2026-08-10', payload: { adminEmail: 'admin@x.com', date: '2026-08-10', calls: [] } },
+      {
+        date: '2026-08-10',
+        eventId: 'event-10',
+        payload: { adminEmail: 'admin@x.com', date: '2026-08-10', calls: [] },
+      },
     ]);
     const rabbitMq = {
       publish: jest.fn().mockRejectedValue(new Error('broker nacked it')),
@@ -94,8 +103,16 @@ describe('DigestOutboxDispatcherService', () => {
 
   it('isolates a publish failure to one digest during the startup sweep', async () => {
     const model = createModelMock([
-      { date: '2026-08-10', payload: { adminEmail: 'admin@x.com', date: '2026-08-10', calls: [] } },
-      { date: '2026-08-11', payload: { adminEmail: 'admin@x.com', date: '2026-08-11', calls: [] } },
+      {
+        date: '2026-08-10',
+        eventId: 'event-10',
+        payload: { adminEmail: 'admin@x.com', date: '2026-08-10', calls: [] },
+      },
+      {
+        date: '2026-08-11',
+        eventId: 'event-11',
+        payload: { adminEmail: 'admin@x.com', date: '2026-08-11', calls: [] },
+      },
     ]);
     const publish = jest
       .fn()

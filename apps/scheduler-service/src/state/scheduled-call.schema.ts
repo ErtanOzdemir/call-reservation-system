@@ -4,6 +4,11 @@ import { HydratedDocument } from 'mongoose';
 
 @Schema({ _id: false })
 export class ReminderOutboxEventRecord {
+  /** Carried onto the wire with the wakeup — lets a consumer dedupe the
+   * same logical reminder if it ever gets dispatched more than once. */
+  @Prop({ required: true })
+  eventId!: string;
+
   @Prop({ required: true })
   requestId!: string;
 

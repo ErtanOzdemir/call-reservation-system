@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const environmentSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3002),
+  MONGODB_URI: z.url(),
   RABBITMQ_URL: z.url(),
   SMTP_HOST: z.string().min(1).default('localhost'),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(1025),
@@ -15,6 +16,7 @@ const environmentSchema = z.object({
 export default () => {
   const environment = environmentSchema.parse({
     PORT: process.env.PORT,
+    MONGODB_URI: process.env.MONGODB_URI,
     RABBITMQ_URL: process.env.RABBITMQ_URL,
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_PORT: process.env.SMTP_PORT,
@@ -25,6 +27,9 @@ export default () => {
   return {
     app: {
       port: environment.PORT,
+    },
+    database: {
+      uri: environment.MONGODB_URI,
     },
     rabbitmq: {
       url: environment.RABBITMQ_URL,
