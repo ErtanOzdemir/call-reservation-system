@@ -1,5 +1,5 @@
 import { CallApprovedEvent } from '@call-reservation/shared-types';
-import { EmailMessage } from './call-requested.template';
+import { EmailMessage } from '../shared-kernel/email/email-message';
 
 export function renderCallApprovedEmail(
   event: CallApprovedEvent,

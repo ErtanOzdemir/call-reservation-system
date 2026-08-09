@@ -8,6 +8,10 @@ describe('configuration', () => {
       ...originalEnvironment,
       RABBITMQ_URL:
         'amqp://reservation:reservation@localhost:5672/call-reservation',
+      SMTP_HOST: 'localhost',
+      SMTP_PORT: '1025',
+      SMTP_SECURE: 'false',
+      SMTP_FROM: 'no-reply@call-reservation.local',
     };
   });
 
@@ -37,5 +41,33 @@ describe('configuration', () => {
     delete process.env.RABBITMQ_URL;
 
     expect(configuration).toThrow();
+  });
+
+  it('uses MailHog-compatible SMTP defaults', () => {
+    delete process.env.SMTP_HOST;
+    delete process.env.SMTP_PORT;
+    delete process.env.SMTP_SECURE;
+    delete process.env.SMTP_FROM;
+
+    expect(configuration().smtp).toEqual({
+      host: 'localhost',
+      port: 1025,
+      secure: false,
+      from: 'no-reply@call-reservation.local',
+    });
+  });
+
+  it('coerces SMTP settings', () => {
+    process.env.SMTP_HOST = 'smtp.example.com';
+    process.env.SMTP_PORT = '465';
+    process.env.SMTP_SECURE = 'true';
+    process.env.SMTP_FROM = 'notifications@example.com';
+
+    expect(configuration().smtp).toEqual({
+      host: 'smtp.example.com',
+      port: 465,
+      secure: true,
+      from: 'notifications@example.com',
+    });
   });
 });

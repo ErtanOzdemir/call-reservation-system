@@ -10,14 +10,13 @@ import {
 } from '@call-reservation/shared-types';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConsumeMessage } from 'amqplib';
+import { EmailSenderService } from '../shared-kernel/email/email-sender.service';
+import { EmailMessage } from '../shared-kernel/email/email-message';
 import { RabbitMqConnectionService } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
 import { renderCallApprovedEmail } from '../templates/call-approved.template';
 import { renderCallCanceledEmail } from '../templates/call-canceled.template';
 import { renderCallRejectedEmail } from '../templates/call-rejected.template';
-import {
-  EmailMessage,
-  renderCallRequestedEmail,
-} from '../templates/call-requested.template';
+import { renderCallRequestedEmail } from '../templates/call-requested.template';
 import { renderDigestDueEmail } from '../templates/digest-due.template';
 import { renderReminderEmails } from '../templates/reminder.template';
 
@@ -36,7 +35,10 @@ const BOUND_ROUTING_KEYS = [
 export class CallEventsConsumer implements OnModuleInit {
   private readonly logger = new Logger(CallEventsConsumer.name);
 
-  constructor(private readonly rabbitMq: RabbitMqConnectionService) {}
+  constructor(
+    private readonly rabbitMq: RabbitMqConnectionService,
+    private readonly emailSender: EmailSenderService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     const channel = this.rabbitMq.channel;
@@ -60,10 +62,9 @@ export class CallEventsConsumer implements OnModuleInit {
         return;
       }
 
-      this.handleMessage(message).catch((error: unknown) => {
+      this.handleMessage(message).catch(() => {
         this.logger.error(
           `Failed to handle "${message.fields.routingKey}" message.`,
-          error,
         );
         channel.nack(message, false, true);
       });
@@ -79,24 +80,26 @@ export class CallEventsConsumer implements OnModuleInit {
 
     switch (message.fields.routingKey) {
       case RoutingKey.CallRequested:
-        this.send(renderCallRequestedEmail(payload as CallRequestedEvent));
+        await this.send(
+          renderCallRequestedEmail(payload as CallRequestedEvent),
+        );
         break;
       case RoutingKey.CallApproved:
-        this.send(renderCallApprovedEmail(payload as CallApprovedEvent));
+        await this.send(renderCallApprovedEmail(payload as CallApprovedEvent));
         break;
       case RoutingKey.CallRejected:
-        this.send(renderCallRejectedEmail(payload as CallRejectedEvent));
+        await this.send(renderCallRejectedEmail(payload as CallRejectedEvent));
         break;
       case RoutingKey.CallCanceled:
-        this.send(renderCallCanceledEmail(payload as CallCanceledEvent));
+        await this.send(renderCallCanceledEmail(payload as CallCanceledEvent));
         break;
       case RoutingKey.ReminderDue:
         for (const email of renderReminderEmails(payload as ReminderDueEvent)) {
-          this.send(email);
+          await this.send(email);
         }
         break;
       case RoutingKey.DigestDue:
-        this.send(renderDigestDueEmail(payload as DigestDueEvent));
+        await this.send(renderDigestDueEmail(payload as DigestDueEvent));
         break;
       default:
         this.logger.warn(
@@ -107,9 +110,7 @@ export class CallEventsConsumer implements OnModuleInit {
     this.rabbitMq.channel.ack(message);
   }
 
-  private send(email: EmailMessage): void {
-    console.log(
-      `[email] to=${email.to} subject="${email.subject}"\n${email.body}`,
-    );
+  private async send(email: EmailMessage): Promise<void> {
+    await this.emailSender.send(email);
   }
 }

@@ -1,5 +1,5 @@
 import { CallCanceledEvent } from '@call-reservation/shared-types';
-import { EmailMessage } from './call-requested.template';
+import { EmailMessage } from '../shared-kernel/email/email-message';
 
 export function renderCallCanceledEmail(
   event: CallCanceledEvent,

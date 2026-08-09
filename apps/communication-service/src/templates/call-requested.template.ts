@@ -1,10 +1,5 @@
 import { CallRequestedEvent } from '@call-reservation/shared-types';
-
-export interface EmailMessage {
-  to: string;
-  subject: string;
-  body: string;
-}
+import { EmailMessage } from '../shared-kernel/email/email-message';
 
 export function renderCallRequestedEmail(
   event: CallRequestedEvent,

@@ -2,6 +2,7 @@ import {
   CALL_EVENTS_EXCHANGE,
   RoutingKey,
 } from '@call-reservation/shared-types';
+import { EmailSenderService } from '../shared-kernel/email/email-sender.service';
 import { RabbitMqConnectionService } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
 import { CallEventsConsumer } from './call-events.consumer';
 
@@ -27,6 +28,12 @@ function flushMicrotasks(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+function createEmailSenderMock() {
+  return {
+    send: jest.fn().mockResolvedValue(undefined),
+  };
+}
+
 function messageFor(routingKey: string, payload: unknown) {
   return {
     content: Buffer.from(JSON.stringify(payload)),
@@ -35,20 +42,14 @@ function messageFor(routingKey: string, payload: unknown) {
 }
 
 describe('CallEventsConsumer', () => {
-  let consoleLogSpy: jest.SpyInstance;
-
-  beforeEach(() => {
-    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
-  });
-
-  afterEach(() => {
-    consoleLogSpy.mockRestore();
-  });
-
   it('binds one queue to every event type it emails for', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const consumer = new CallEventsConsumer(rabbitMq);
+    const emailSender = createEmailSenderMock();
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      emailSender as unknown as EmailSenderService,
+    );
 
     await consumer.onModuleInit();
 
@@ -75,7 +76,11 @@ describe('CallEventsConsumer', () => {
   it('emails the requester on call.requested', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const consumer = new CallEventsConsumer(rabbitMq);
+    const emailSender = createEmailSenderMock();
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      emailSender as unknown as EmailSenderService,
+    );
     await consumer.onModuleInit();
 
     const message = messageFor(RoutingKey.CallRequested, {
@@ -88,9 +93,11 @@ describe('CallEventsConsumer', () => {
     channel.deliver(message);
     await flushMicrotasks();
 
-    expect(consoleLogSpy).toHaveBeenCalledTimes(1);
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      expect.stringContaining('customer@example.com'),
+    expect(emailSender.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'customer@example.com',
+        subject: 'We received your call request',
+      }),
     );
     expect(channel.ack).toHaveBeenCalledWith(message);
   });
@@ -98,7 +105,11 @@ describe('CallEventsConsumer', () => {
   it('emails the requester on call.approved', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const consumer = new CallEventsConsumer(rabbitMq);
+    const emailSender = createEmailSenderMock();
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      emailSender as unknown as EmailSenderService,
+    );
     await consumer.onModuleInit();
 
     const message = messageFor(RoutingKey.CallApproved, {
@@ -110,8 +121,11 @@ describe('CallEventsConsumer', () => {
     channel.deliver(message);
     await flushMicrotasks();
 
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      expect.stringContaining('has been approved'),
+    expect(emailSender.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'customer@example.com',
+        body: expect.stringContaining('has been approved'),
+      }),
     );
     expect(channel.ack).toHaveBeenCalledWith(message);
   });
@@ -119,7 +133,11 @@ describe('CallEventsConsumer', () => {
   it('emails the requester on call.rejected', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const consumer = new CallEventsConsumer(rabbitMq);
+    const emailSender = createEmailSenderMock();
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      emailSender as unknown as EmailSenderService,
+    );
     await consumer.onModuleInit();
 
     const message = messageFor(RoutingKey.CallRejected, {
@@ -130,8 +148,11 @@ describe('CallEventsConsumer', () => {
     channel.deliver(message);
     await flushMicrotasks();
 
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      expect.stringContaining('rejected by the admin'),
+    expect(emailSender.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'customer@example.com',
+        body: expect.stringContaining('rejected by the admin'),
+      }),
     );
     expect(channel.ack).toHaveBeenCalledWith(message);
   });
@@ -139,7 +160,11 @@ describe('CallEventsConsumer', () => {
   it('emails the requester on call.canceled', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const consumer = new CallEventsConsumer(rabbitMq);
+    const emailSender = createEmailSenderMock();
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      emailSender as unknown as EmailSenderService,
+    );
     await consumer.onModuleInit();
 
     const message = messageFor(RoutingKey.CallCanceled, {
@@ -150,8 +175,11 @@ describe('CallEventsConsumer', () => {
     channel.deliver(message);
     await flushMicrotasks();
 
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      expect.stringContaining('canceled by the admin'),
+    expect(emailSender.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'customer@example.com',
+        body: expect.stringContaining('canceled by the admin'),
+      }),
     );
     expect(channel.ack).toHaveBeenCalledWith(message);
   });
@@ -159,7 +187,11 @@ describe('CallEventsConsumer', () => {
   it('emails both the customer and the admin on reminder.due', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const consumer = new CallEventsConsumer(rabbitMq);
+    const emailSender = createEmailSenderMock();
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      emailSender as unknown as EmailSenderService,
+    );
     await consumer.onModuleInit();
 
     const message = messageFor(RoutingKey.ReminderDue, {
@@ -171,12 +203,14 @@ describe('CallEventsConsumer', () => {
     channel.deliver(message);
     await flushMicrotasks();
 
-    expect(consoleLogSpy).toHaveBeenCalledTimes(2);
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      expect.stringContaining('to=customer@example.com'),
+    expect(emailSender.send).toHaveBeenCalledTimes(2);
+    expect(emailSender.send).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ to: 'customer@example.com' }),
     );
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      expect.stringContaining('to=admin@call-reservation.local'),
+    expect(emailSender.send).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ to: 'admin@call-reservation.local' }),
     );
     expect(channel.ack).toHaveBeenCalledWith(message);
   });
@@ -184,7 +218,11 @@ describe('CallEventsConsumer', () => {
   it('emails the admin a single digest on digest.due', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const consumer = new CallEventsConsumer(rabbitMq);
+    const emailSender = createEmailSenderMock();
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      emailSender as unknown as EmailSenderService,
+    );
     await consumer.onModuleInit();
 
     const message = messageFor(RoutingKey.DigestDue, {
@@ -201,9 +239,9 @@ describe('CallEventsConsumer', () => {
     channel.deliver(message);
     await flushMicrotasks();
 
-    expect(consoleLogSpy).toHaveBeenCalledTimes(1);
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      expect.stringContaining('to=admin@call-reservation.local'),
+    expect(emailSender.send).toHaveBeenCalledTimes(1);
+    expect(emailSender.send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'admin@call-reservation.local' }),
     );
     expect(channel.ack).toHaveBeenCalledWith(message);
   });
@@ -211,21 +249,29 @@ describe('CallEventsConsumer', () => {
   it('acks and drops a message with no matching handler', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const consumer = new CallEventsConsumer(rabbitMq);
+    const emailSender = createEmailSenderMock();
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      emailSender as unknown as EmailSenderService,
+    );
     await consumer.onModuleInit();
 
     const message = messageFor('unknown.routing.key', { requestId: 'req-1' });
     channel.deliver(message);
     await flushMicrotasks();
 
-    expect(consoleLogSpy).not.toHaveBeenCalled();
+    expect(emailSender.send).not.toHaveBeenCalled();
     expect(channel.ack).toHaveBeenCalledWith(message);
   });
 
   it('nacks and requeues the message if rendering/sending fails', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const consumer = new CallEventsConsumer(rabbitMq);
+    const emailSender = createEmailSenderMock();
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      emailSender as unknown as EmailSenderService,
+    );
     await consumer.onModuleInit();
 
     const malformedMessage = {
@@ -239,15 +285,44 @@ describe('CallEventsConsumer', () => {
     expect(channel.ack).not.toHaveBeenCalled();
   });
 
+  it('nacks and requeues the message if SMTP delivery fails', async () => {
+    const channel = createChannelMock();
+    const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
+    const emailSender = createEmailSenderMock();
+    emailSender.send.mockRejectedValueOnce(new Error('SMTP unavailable'));
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      emailSender as unknown as EmailSenderService,
+    );
+    await consumer.onModuleInit();
+
+    const message = messageFor(RoutingKey.CallRequested, {
+      requestId: 'req-1',
+      email: 'customer@example.com',
+      phoneNumber: '+905551234567',
+      scheduledAt: '2026-08-10T10:00:00+03:00',
+      requestedByUserId: 'user-1',
+    });
+    channel.deliver(message);
+    await flushMicrotasks();
+
+    expect(channel.nack).toHaveBeenCalledWith(message, false, true);
+    expect(channel.ack).not.toHaveBeenCalled();
+  });
+
   it('ignores a null message from the broker', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const consumer = new CallEventsConsumer(rabbitMq);
+    const emailSender = createEmailSenderMock();
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      emailSender as unknown as EmailSenderService,
+    );
     await consumer.onModuleInit();
 
     channel.deliver(null);
     await flushMicrotasks();
 
-    expect(consoleLogSpy).not.toHaveBeenCalled();
+    expect(emailSender.send).not.toHaveBeenCalled();
   });
 });

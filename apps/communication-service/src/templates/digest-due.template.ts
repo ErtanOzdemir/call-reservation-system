@@ -1,5 +1,5 @@
 import { DigestDueEvent } from '@call-reservation/shared-types';
-import { EmailMessage } from './call-requested.template';
+import { EmailMessage } from '../shared-kernel/email/email-message';
 
 export function renderDigestDueEmail(event: DigestDueEvent): EmailMessage {
   const body =
@@ -8,7 +8,9 @@ export function renderDigestDueEmail(event: DigestDueEvent): EmailMessage {
       : [
           `Calls scheduled for ${event.date}:`,
           '',
-          ...event.calls.map((call) => `- ${call.scheduledAt} with ${call.email}`),
+          ...event.calls.map(
+            (call) => `- ${call.scheduledAt} with ${call.email}`,
+          ),
         ].join('\n');
 
   return {
