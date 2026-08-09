@@ -34,10 +34,14 @@ flowchart LR
     MQ -->|"call.requested<br/>call.approved<br/>call.canceled"| SCH
 
     SCH["Scheduler Service<br/>only cron/interval owner"] -->|"own write:<br/>pendingReminder"| SDB[("MongoDB<br/>scheduler_state db")]
-    SDB -.->|"change stream"| Relay2["Outbox Dispatcher #2<br/>Scheduler's own relay"]
+    SDB -.->|"change stream"| Relay2["Outbox Dispatcher #2<br/>Scheduler's reminder relay"]
     Relay2 -->|"publish (delayed,<br/>x-delay header)"| DMQ{{"RabbitMQ<br/>reminder.delay exchange"}}
     DMQ -->|"delivered back once<br/>the delay elapses"| SCH
     SCH -.->|"re-check state, then publish"| MQ
+
+    SCH -->|"daily cron: write<br/>pending-digests doc"| SDB
+    SDB -.->|"change stream"| Relay3["Outbox Dispatcher #3<br/>Scheduler's digest relay"]
+    Relay3 -->|publish| MQ
 
     MQ -->|"reminder.due<br/>digest.due"| COM
 
@@ -70,9 +74,19 @@ Notes on the diagram:
   (`ReminderWakeupConsumer`), which checks that the call is still
   `SCHEDULED` (it may have been canceled in the meantime) and only then
   publishes `reminder.due` onto `call.events`.
-- `digest.due` does not go through an outbox. The daily cron job reads
-  Scheduler's own database and publishes directly, since there is no state
-  mutation that needs to stay atomic with the publish.
+- `digest.due` goes through a third, dedicated outbox
+  (`DigestOutboxDispatcherService`, Outbox Dispatcher #3 above). The daily
+  cron (`DailyDigestService`) only computes tomorrow's calls and writes one
+  document to a `pending-digests` collection — it never talks to RabbitMQ
+  itself. The dispatcher tails that collection's change stream the same way
+  the other two do, publishes, then deletes the document. This means a
+  RabbitMQ outage (or the process dying) at exactly 18:00 no longer loses
+  that day's digest outright: it sits in `pending-digests` until the next
+  catch-up sweep — on the next restart, or as soon as the broker is back —
+  delivers it. Earlier versions of this service published directly from the
+  cron job with a few immediate retries and no persistence; that meant a
+  broker outage spanning the retry window silently dropped the digest until
+  the next day.
 
 ## Why hexagonal architecture — only in Call Requests Service
 
@@ -117,17 +131,22 @@ cron jobs or intervals, and that services not poll each other for updates.
 Two mechanisms are used to satisfy this.
 
 1. **Outbox relayed by MongoDB change streams, not a poller.** Each service
-   that needs to publish an event does so by writing the event into the same
-   document as the state change it describes, in one atomic Mongo write
-   (`pendingEvents` on `CallRequestRecord` in Call Requests Service,
-   `pendingReminder` on `ScheduledCallRecord` in Scheduler). A dispatcher in
-   that same service tails the collection's change stream and publishes to
-   RabbitMQ when it sees a matching write, then clears the pending event.
-   This runs independently in both services — see "Outbox Dispatcher #1"
-   and "#2" in the diagram above. If the process crashes between the state
-   write and the publish, the pending event is picked up on the next
-   change-stream catch-up; state and event cannot go out of sync because
-   they were written together.
+   that needs to publish an event does so by writing the event into Mongo
+   first, then a dispatcher tails a change stream and publishes to RabbitMQ
+   when it sees a matching write, clearing the pending record afterward.
+   Three independent instances of this run across the two services — see
+   "Outbox Dispatcher #1/#2/#3" in the diagram above:
+   - Call Requests Service: `pendingEvents` embedded on `CallRequestRecord`,
+     in the same atomic write as the state change it describes.
+   - Scheduler (reminders): `pendingReminder` embedded on
+     `ScheduledCallRecord`, written when `call.approved` is consumed.
+   - Scheduler (digest): a standalone `pending-digests` collection, one
+     document per not-yet-delivered day, written by the daily cron.
+
+   If a process crashes between the state write and the publish, the
+   pending record is picked up on the next change-stream catch-up sweep at
+   startup; state and event cannot go out of sync because — for the first
+   two — they were written together in one document.
 
    The outbox event is embedded in the same document instead of living in a
    separate `outbox` collection. A dedicated outbox collection is the more
@@ -177,6 +196,17 @@ rendered message. See `apps/communication-service/src/templates/`.
   `WorkingHoursPolicy` re-validates it server-side regardless of what the
   client sends. Working hours are 10:00–18:00 Istanbul time, Monday–Friday;
   past dates and same-day bookings are rejected.
+
+- **Double-booking is prevented at the database level, not just in
+  application code.** The initial implementation only checked for a
+  conflicting request before inserting a new one — two requests for the
+  same slot arriving close together could both pass that check before
+  either write landed. `CallRequestRecord` now has a partial unique index
+  on `scheduledAt`, scoped to `status: REQUESTED | SCHEDULED` (a
+  `REJECTED`/`CANCELED`/`CALLED` request frees the slot back up for
+  re-booking). A losing concurrent insert now fails with a Mongo duplicate-key
+  error, which the repository adapter turns into the same `SlotUnavailableError`
+  (409) the pre-check already produced for the non-concurrent case.
 
 - **Single admin, via `ADMIN_EMAIL`.** All admin-facing emails (reminders,
   daily digest) go to one address, configured with the `ADMIN_EMAIL`
