@@ -3,7 +3,23 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "dev": "nx run-many -t serve --parallel=4"
+    "dev": "nx run-many -t serve --parallel=4",
+    "test": "nx run-many -t test",
+    "test:call-requests-service": "nx run call-requests-service:test",
+    "test:communication-service": "nx run communication-service:test",
+    "test:scheduler-service": "nx run scheduler-service:test",
+    "test:web-service": "nx run web-service:test",
+    "lint": "nx run-many -t lint",
+    "lint:call-requests-service": "nx run call-requests-service:lint",
+    "lint:communication-service": "nx run communication-service:lint",
+    "lint:scheduler-service": "nx run scheduler-service:lint",
+    "lint:web-service": "nx run web-service:lint",
+    "format": "nx format:write --all",
+    "format:check": "nx format:check --all",
+    "format:call-requests-service": "nx format:write --projects=call-requests-service",
+    "format:communication-service": "nx format:write --projects=communication-service",
+    "format:scheduler-service": "nx format:write --projects=scheduler-service",
+    "format:web-service": "nx format:write --projects=web-service"
   },
   "private": true,
   "dependencies": {
