@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
-import { Transporter } from 'nodemailer';
 import { createMockConfigService } from '../testing/mock-config.service';
+import { MockTransporter } from '../testing/mock-transporter';
 import {
   EmailSenderService,
   maskEmailAddress,
@@ -15,8 +15,7 @@ describe('EmailSenderService', () => {
   };
 
   it('sends a plain-text email through the configured SMTP transport', async () => {
-    const sendMail = jest.fn().mockResolvedValue({ messageId: 'message-1' });
-    const transporter = { sendMail } as unknown as Transporter;
+    const transporter = new MockTransporter();
     const configService = createMockConfigService({
       'smtp.from': 'no-reply@example.com',
     });
@@ -24,19 +23,19 @@ describe('EmailSenderService', () => {
 
     await service.send(email);
 
-    expect(sendMail).toHaveBeenCalledWith({
-      from: 'no-reply@example.com',
-      to: 'customer@example.com',
-      subject: 'Sensitive subject',
-      text: 'Sensitive email body',
-    });
+    expect(transporter.sendMailCalls).toEqual([
+      {
+        from: 'no-reply@example.com',
+        to: 'customer@example.com',
+        subject: 'Sensitive subject',
+        text: 'Sensitive email body',
+      },
+    ]);
   });
 
   it('logs the subject and body without exposing full email addresses', async () => {
     const logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation();
-    const transporter = {
-      sendMail: jest.fn().mockResolvedValue({ messageId: 'message-1' }),
-    } as unknown as Transporter;
+    const transporter = new MockTransporter();
     const configService = createMockConfigService({
       'smtp.from': 'no-reply@example.com',
     });
@@ -54,13 +53,8 @@ describe('EmailSenderService', () => {
 
   it('does not expose SMTP error details in failure logs', async () => {
     const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
-    const transporter = {
-      sendMail: jest
-        .fn()
-        .mockRejectedValue(
-          new Error('Delivery failed for customer@example.com'),
-        ),
-    } as unknown as Transporter;
+    const transporter = new MockTransporter();
+    transporter.failure = new Error('Delivery failed for customer@example.com');
     const configService = createMockConfigService({
       'smtp.from': 'no-reply@example.com',
     });

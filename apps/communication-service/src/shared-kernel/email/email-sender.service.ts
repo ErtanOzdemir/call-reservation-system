@@ -1,8 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Transporter } from 'nodemailer';
 import { EMAIL_TRANSPORT } from './email.constants';
 import { EmailMessage } from './email-message';
+import { MailTransport } from './mail-transport';
 
 export function maskEmailAddress(email: string): string {
   const separatorIndex = email.lastIndexOf('@');
@@ -33,7 +33,7 @@ export class EmailSenderService {
   private readonly logger = new Logger(EmailSenderService.name);
 
   constructor(
-    @Inject(EMAIL_TRANSPORT) private readonly transporter: Transporter,
+    @Inject(EMAIL_TRANSPORT) private readonly transporter: MailTransport,
     private readonly configService: ConfigService,
   ) {}
 
