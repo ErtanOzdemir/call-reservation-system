@@ -1,28 +1,7 @@
 import { RabbitMqConnectionService } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
+import { createChangeStreamModelMock } from '../shared-kernel/testing/change-stream-model.mock';
 import { ScheduledCallDocument } from './scheduled-call.schema';
 import { ReminderOutboxDispatcherService } from './reminder-outbox-dispatcher.service';
-
-type ChangeListener = (change: unknown) => void;
-
-function createModelMock(pendingRequests: unknown[]) {
-  const changeStreamListeners: Record<string, ChangeListener> = {};
-  const changeStream = {
-    on: jest.fn((event: string, listener: ChangeListener) => {
-      changeStreamListeners[event] = listener;
-    }),
-    close: jest.fn().mockResolvedValue(undefined),
-  };
-
-  return {
-    find: jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue(pendingRequests),
-    }),
-    updateOne: jest.fn().mockReturnValue({ exec: jest.fn() }),
-    watch: jest.fn().mockReturnValue(changeStream),
-    changeStream,
-    changeStreamListeners,
-  };
-}
 
 function flushMicrotasks(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
@@ -31,7 +10,7 @@ function flushMicrotasks(): Promise<void> {
 describe('ReminderOutboxDispatcherService', () => {
   it('dispatches a reminder already pending at startup and clears it', async () => {
     const targetFireAt = new Date(Date.now() + 60_000);
-    const model = createModelMock([
+    const { model, updateOne } = createChangeStreamModelMock<ScheduledCallDocument>([
       {
         requestId: 'req-1',
         pendingReminder: { eventId: 'event-1', requestId: 'req-1', targetFireAt },
@@ -40,10 +19,7 @@ describe('ReminderOutboxDispatcherService', () => {
     const rabbitMq = {
       publish: jest.fn(),
     } as unknown as RabbitMqConnectionService;
-    const service = new ReminderOutboxDispatcherService(
-      model as never as import('mongoose').Model<ScheduledCallDocument>,
-      rabbitMq,
-    );
+    const service = new ReminderOutboxDispatcherService(model, rabbitMq);
 
     await service.onModuleInit();
 
@@ -53,7 +29,7 @@ describe('ReminderOutboxDispatcherService', () => {
       { requestId: 'req-1', eventId: 'event-1' },
       { headers: { 'x-delay': expect.any(Number) } },
     );
-    expect(model.updateOne).toHaveBeenCalledWith(
+    expect(updateOne).toHaveBeenCalledWith(
       { requestId: 'req-1', 'pendingReminder.targetFireAt': targetFireAt },
       { $unset: { pendingReminder: '' } },
     );
@@ -62,7 +38,7 @@ describe('ReminderOutboxDispatcherService', () => {
   it('recomputes the delay from targetFireAt rather than trusting a stale value', async () => {
     // Already due — should clamp to 0, not go negative.
     const targetFireAt = new Date(Date.now() - 60_000);
-    const model = createModelMock([
+    const { model } = createChangeStreamModelMock<ScheduledCallDocument>([
       {
         requestId: 'req-1',
         pendingReminder: { eventId: 'event-1', requestId: 'req-1', targetFireAt },
@@ -71,10 +47,7 @@ describe('ReminderOutboxDispatcherService', () => {
     const rabbitMq = {
       publish: jest.fn(),
     } as unknown as RabbitMqConnectionService;
-    const service = new ReminderOutboxDispatcherService(
-      model as never as import('mongoose').Model<ScheduledCallDocument>,
-      rabbitMq,
-    );
+    const service = new ReminderOutboxDispatcherService(model, rabbitMq);
 
     await service.onModuleInit();
 
@@ -87,35 +60,29 @@ describe('ReminderOutboxDispatcherService', () => {
   });
 
   it('does nothing for a request with no pending reminder', async () => {
-    const model = createModelMock([
+    const { model, updateOne } = createChangeStreamModelMock<ScheduledCallDocument>([
       { requestId: 'req-1', pendingReminder: undefined },
     ]);
     const rabbitMq = {
       publish: jest.fn(),
     } as unknown as RabbitMqConnectionService;
-    const service = new ReminderOutboxDispatcherService(
-      model as never as import('mongoose').Model<ScheduledCallDocument>,
-      rabbitMq,
-    );
+    const service = new ReminderOutboxDispatcherService(model, rabbitMq);
 
     await service.onModuleInit();
 
     expect(rabbitMq.publish).not.toHaveBeenCalled();
-    expect(model.updateOne).not.toHaveBeenCalled();
+    expect(updateOne).not.toHaveBeenCalled();
   });
 
   it('dispatches a reminder that arrives through the live change stream', async () => {
-    const model = createModelMock([]);
+    const { model, emitChange } = createChangeStreamModelMock<ScheduledCallDocument>([]);
     const rabbitMq = {
       publish: jest.fn(),
     } as unknown as RabbitMqConnectionService;
-    const service = new ReminderOutboxDispatcherService(
-      model as never as import('mongoose').Model<ScheduledCallDocument>,
-      rabbitMq,
-    );
+    const service = new ReminderOutboxDispatcherService(model, rabbitMq);
 
     await service.onModuleInit();
-    model.changeStreamListeners['change']({
+    emitChange({
       fullDocument: {
         requestId: 'req-2',
         pendingReminder: {
@@ -137,7 +104,7 @@ describe('ReminderOutboxDispatcherService', () => {
 
   it('does not clear the pending reminder if the broker publish fails', async () => {
     const targetFireAt = new Date(Date.now() + 60_000);
-    const model = createModelMock([
+    const { model, updateOne } = createChangeStreamModelMock<ScheduledCallDocument>([
       {
         requestId: 'req-1',
         pendingReminder: { eventId: 'event-1', requestId: 'req-1', targetFireAt },
@@ -146,18 +113,15 @@ describe('ReminderOutboxDispatcherService', () => {
     const rabbitMq = {
       publish: jest.fn().mockRejectedValue(new Error('broker nacked it')),
     } as unknown as RabbitMqConnectionService;
-    const service = new ReminderOutboxDispatcherService(
-      model as never as import('mongoose').Model<ScheduledCallDocument>,
-      rabbitMq,
-    );
+    const service = new ReminderOutboxDispatcherService(model, rabbitMq);
 
     await service.onModuleInit();
 
-    expect(model.updateOne).not.toHaveBeenCalled();
+    expect(updateOne).not.toHaveBeenCalled();
   });
 
   it('isolates a publish failure to one document during the startup sweep', async () => {
-    const model = createModelMock([
+    const { model } = createChangeStreamModelMock<ScheduledCallDocument>([
       {
         requestId: 'req-bad',
         pendingReminder: {
@@ -180,10 +144,7 @@ describe('ReminderOutboxDispatcherService', () => {
       .mockRejectedValueOnce(new Error('channel closed'))
       .mockResolvedValueOnce(undefined);
     const rabbitMq = { publish } as unknown as RabbitMqConnectionService;
-    const service = new ReminderOutboxDispatcherService(
-      model as never as import('mongoose').Model<ScheduledCallDocument>,
-      rabbitMq,
-    );
+    const service = new ReminderOutboxDispatcherService(model, rabbitMq);
 
     await service.onModuleInit();
 
@@ -198,18 +159,15 @@ describe('ReminderOutboxDispatcherService', () => {
   });
 
   it('closes the change stream on module destroy', async () => {
-    const model = createModelMock([]);
+    const { model, changeStream } = createChangeStreamModelMock<ScheduledCallDocument>([]);
     const rabbitMq = {
       publish: jest.fn(),
     } as unknown as RabbitMqConnectionService;
-    const service = new ReminderOutboxDispatcherService(
-      model as never as import('mongoose').Model<ScheduledCallDocument>,
-      rabbitMq,
-    );
+    const service = new ReminderOutboxDispatcherService(model, rabbitMq);
 
     await service.onModuleInit();
     await service.onModuleDestroy();
 
-    expect(model.changeStream.close).toHaveBeenCalled();
+    expect(changeStream.close).toHaveBeenCalled();
   });
 });
