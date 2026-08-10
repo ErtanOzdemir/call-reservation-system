@@ -38,6 +38,7 @@ export class ApproveCallUseCaseHandler {
       email: callRequest.email,
       scheduledAt: callRequest.scheduledAt.toISOString(),
       approvedAt: new Date().toISOString(),
+      adminEmail: useCase.adminEmail,
     };
 
     const savedCallRequest = await this.callRequestRepository.transition(

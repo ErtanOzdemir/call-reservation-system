@@ -99,6 +99,7 @@ export class CallEventsConsumer implements OnModuleInit {
         email: event.email,
         scheduledAt,
         status: CallStatus.SCHEDULED,
+        adminEmail: event.adminEmail,
       },
       { scheduleReminderAt: targetFireAt, eventId: randomUUID() },
     );

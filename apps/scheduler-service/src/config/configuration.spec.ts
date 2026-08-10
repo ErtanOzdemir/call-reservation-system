@@ -10,7 +10,6 @@ describe('configuration', () => {
         'mongodb://localhost:27017/scheduler?replicaSet=rs0&directConnection=true',
       RABBITMQ_URL:
         'amqp://reservation:reservation@localhost:5672/call-reservation',
-      ADMIN_EMAIL: 'admin@call-reservation.local',
     };
   });
 
@@ -46,23 +45,5 @@ describe('configuration', () => {
     delete process.env.RABBITMQ_URL;
 
     expect(configuration).toThrow();
-  });
-
-  it('rejects a missing admin email', () => {
-    delete process.env.ADMIN_EMAIL;
-
-    expect(configuration).toThrow();
-  });
-
-  it('rejects an invalid admin email', () => {
-    process.env.ADMIN_EMAIL = 'not-an-email';
-
-    expect(configuration).toThrow();
-  });
-
-  it('exposes the admin email for the reminder/digest emails', () => {
-    expect(configuration().reminder.adminEmail).toBe(
-      'admin@call-reservation.local',
-    );
   });
 });

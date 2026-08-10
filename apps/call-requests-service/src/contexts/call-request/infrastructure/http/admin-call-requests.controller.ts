@@ -7,8 +7,10 @@ import {
   NotFoundException,
   Param,
   Patch,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { AuthenticatedRequest } from '../../../auth/infrastructure/http/authenticated-request';
 import { JwtAuthGuard } from '../../../auth/infrastructure/http/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../auth/infrastructure/http/guards/roles.guard';
 import { Roles } from '../../../auth/infrastructure/http/roles.decorator';
@@ -49,9 +51,12 @@ export class AdminCallRequestsController {
   }
 
   @Patch(':id/approve')
-  async approve(@Param('id') id: string): Promise<CallRequestResponse> {
+  async approve(
+    @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<CallRequestResponse> {
     return this.handle(() =>
-      this.approveCall.execute(new ApproveCallUseCase(id)),
+      this.approveCall.execute(new ApproveCallUseCase(id, request.user.email)),
     );
   }
 

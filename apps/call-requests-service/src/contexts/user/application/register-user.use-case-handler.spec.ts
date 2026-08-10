@@ -1,6 +1,7 @@
 import { Role } from '@call-reservation/shared-types';
 import { MockPasswordHasherService } from '../../../shared-kernel/crypto/testing/mock-password-hasher.service';
 import { User } from '../domain/entities/user.entity';
+import { AdminAlreadyExistsError } from '../domain/errors/admin-already-exists.error';
 import { UserAlreadyExistsError } from '../domain/errors/user-already-exists.error';
 import { InMemoryUserRepository } from './testing/in-memory-user-repository';
 import { RegisterUserUseCase } from './useCase/register-user.use-case';
@@ -47,5 +48,38 @@ describe('RegisterUserUseCaseHandler', () => {
       ),
     ).rejects.toBeInstanceOf(UserAlreadyExistsError);
     expect(passwordHasher.hashCalls).toEqual([]);
+  });
+
+  it('rejects a second admin registration', async () => {
+    const repository = new InMemoryUserRepository();
+    repository.seed(
+      new User('existing-admin', 'admin@example.com', 'hash', Role.ADMIN),
+    );
+    const handler = new RegisterUserUseCaseHandler(repository, passwordHasher);
+
+    await expect(
+      handler.execute(
+        new RegisterUserUseCase(
+          'another-admin@example.com',
+          'password123',
+          Role.ADMIN,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(AdminAlreadyExistsError);
+    expect(passwordHasher.hashCalls).toEqual([]);
+  });
+
+  it('still allows a USER registration after an admin already exists', async () => {
+    const repository = new InMemoryUserRepository();
+    repository.seed(
+      new User('existing-admin', 'admin@example.com', 'hash', Role.ADMIN),
+    );
+    const handler = new RegisterUserUseCaseHandler(repository, passwordHasher);
+
+    await expect(
+      handler.execute(
+        new RegisterUserUseCase('person@example.com', 'password123', Role.USER),
+      ),
+    ).resolves.toMatchObject({ email: 'person@example.com', role: Role.USER });
   });
 });

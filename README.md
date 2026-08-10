@@ -252,19 +252,40 @@ rendered message. See `apps/communication-service/src/templates/`.
   error, which the repository adapter turns into the same `SlotUnavailableError`
   (409) the pre-check already produced for the non-concurrent case.
 
-- **Single admin, via `ADMIN_EMAIL`.** All admin-facing emails (reminders,
-  daily digest) go to one address, configured with the `ADMIN_EMAIL`
-  environment variable. A system with multiple admins could broadcast the
-  initial `call.requested` notification to every admin, then route
-  subsequent reminders and digests only to whichever admin approved the
-  request. That requires request-to-admin ownership, notification
-  preferences, and handling for edge cases (an admin leaving, reassignment,
-  etc.), which is out of scope for this assignment; the implementation sends
-  everything to the single address in `ADMIN_EMAIL`. This is noted with a
-  comment at the point where the admin email is attached to an event, in
-  [`apps/scheduler-service/src/consumers/reminder-wakeup.consumer.ts`](apps/scheduler-service/src/consumers/reminder-wakeup.consumer.ts)
-  and
-  [`apps/scheduler-service/src/digest/daily-digest.service.ts`](apps/scheduler-service/src/digest/daily-digest.service.ts).
+- **Single admin, enforced at the database and carried on the wire.**
+  `call-requests-service` allows at most one `ADMIN` user, ever — a partial
+  unique index on `role` in the `users` collection (`unique_admin_role`, see
+  [`user.schema.ts`](apps/call-requests-service/src/contexts/user/infrastructure/mongo/user.schema.ts)),
+  the same pattern used to prevent double-booking a slot. A second admin
+  registration attempt fails with a 409, both from a friendly pre-check and,
+  race-safe, from the index itself.
+
+  Scheduler Service is the one that stamps an admin address onto
+  `reminder.due`/`digest.due`, but it has no database or API access to
+  `call-requests-service` to look the admin up — per the no-polling
+  constraint, it can only learn things from events it already consumes. The
+  admin approving a call is authenticated, so `AdminCallRequestsController`
+  reads `request.user.email` and includes it on `CallApprovedEvent`.
+  Scheduler stores it directly on the `ScheduledCallRecord` it already
+  builds from that event, and `ReminderWakeupConsumer` reads it straight off
+  that record when it fires a reminder for a specific call.
+  `CallCanceledEvent` does not carry it: a call can only be canceled from
+  `SCHEDULED`, which only exists because it was approved first, so the
+  record's `adminEmail` is already there.
+
+  The daily digest is different — it fires on a schedule regardless of
+  whether any call happens to be scheduled for tomorrow, so it can't always
+  read the admin's email off a specific call. Instead it reads whichever
+  `ScheduledCallRecord` was written most recently across the whole
+  collection (`findMostRecentAdminEmail`) — since there is only ever one
+  admin, any record ever written carries the right address. If no admin has
+  ever approved a call, the digest is skipped for that day with a warning
+  log rather than sent to nowhere.
+
+  A system with multiple admins could broadcast the initial `call.requested`
+  notification to every admin, then route reminders/digests only to whichever
+  admin approved the request — but that needs request-to-admin ownership and
+  reassignment handling that's out of scope here.
 
 - **Reminder timing: 2 hours before, to both parties.** The assignment
   document is inconsistent on this point: the call-lifecycle table states

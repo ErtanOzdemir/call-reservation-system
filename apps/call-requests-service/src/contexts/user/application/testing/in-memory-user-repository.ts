@@ -1,3 +1,4 @@
+import { Role } from '@call-reservation/shared-types';
 import { User } from '../../domain/entities/user.entity';
 import { UserRepositoryPort } from '../../domain/ports/user-repository.port';
 
@@ -10,6 +11,10 @@ export class InMemoryUserRepository implements UserRepositoryPort {
 
   async findByEmail(email: string): Promise<User | null> {
     return this.users.find((user) => user.email === email) ?? null;
+  }
+
+  async existsByRole(role: Role): Promise<boolean> {
+    return this.users.some((user) => user.role === role);
   }
 
   async save(user: User): Promise<User> {

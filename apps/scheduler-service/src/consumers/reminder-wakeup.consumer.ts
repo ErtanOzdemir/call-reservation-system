@@ -5,7 +5,6 @@ import {
   RoutingKey,
 } from '@call-reservation/shared-types';
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { ConsumeMessage } from 'amqplib';
 import {
   RabbitMqConnectionService,
@@ -27,16 +26,12 @@ interface WakeupPayload {
 @Injectable()
 export class ReminderWakeupConsumer implements OnModuleInit {
   private readonly logger = new Logger(ReminderWakeupConsumer.name);
-  private readonly adminEmail: string;
 
   constructor(
     private readonly rabbitMq: RabbitMqConnectionService,
     @Inject(SCHEDULED_CALL_REPOSITORY)
     private readonly scheduledCallRepository: ScheduledCallRepository,
-    configService: ConfigService,
-  ) {
-    this.adminEmail = configService.getOrThrow<string>('reminder.adminEmail');
-  }
+  ) {}
 
   async onModuleInit(): Promise<void> {
     const channel = this.rabbitMq.channel;
@@ -77,15 +72,16 @@ export class ReminderWakeupConsumer implements OnModuleInit {
       await this.scheduledCallRepository.findByRequestId(requestId);
 
     if (scheduledCall?.status === CallStatus.SCHEDULED) {
-      // Single-admin simplification: every reminder goes to the one address
-      // in ADMIN_EMAIL. A multi-admin setup could broadcast call.requested
-      // to every admin and then route reminders only to whichever admin
-      // approved the request, but that pulls in request-to-admin ownership
-      // that's out of scope for this assignment.
+      // Single-admin simplification: every reminder goes to the admin who
+      // approved this specific call — carried on the ScheduledCallRecord
+      // since call.approved. A multi-admin setup could broadcast
+      // call.requested to every admin and then route reminders only to
+      // whichever admin approved the request, but per-admin ownership
+      // beyond "there's exactly one" is out of scope for this assignment.
       const event: ReminderDueEvent = {
         requestId,
         customerEmail: scheduledCall.email,
-        adminEmail: this.adminEmail,
+        adminEmail: scheduledCall.adminEmail,
         scheduledAt: scheduledCall.scheduledAt.toISOString(),
       };
 

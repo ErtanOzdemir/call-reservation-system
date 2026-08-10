@@ -81,6 +81,7 @@ describe('CallEventsConsumer', () => {
       email: 'customer@example.com',
       scheduledAt: scheduledAt.toISOString(),
       approvedAt: '2026-08-08T09:00:00+03:00',
+      adminEmail: 'admin@example.com',
     });
     channel.deliver(message);
     await flushMicrotasks();
@@ -92,6 +93,7 @@ describe('CallEventsConsumer', () => {
           email: 'customer@example.com',
           scheduledAt,
           status: CallStatus.SCHEDULED,
+          adminEmail: 'admin@example.com',
         },
         options: {
           scheduleReminderAt: new Date('2026-08-10T08:00:00+03:00'),

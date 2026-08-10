@@ -100,7 +100,6 @@ services:
       PORT: 3003
       MONGODB_URI: mongodb://mongodb:27017/scheduler?replicaSet=rs0&directConnection=true
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-reservation}:${RABBITMQ_DEFAULT_PASS:-reservation}@rabbitmq:5672/${RABBITMQ_DEFAULT_VHOST:-call-reservation}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@call-reservation.local}
     depends_on:
       mongodb-init:
         condition: service_completed_successfully

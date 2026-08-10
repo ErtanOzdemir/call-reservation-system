@@ -8,7 +8,6 @@ import {
   REMINDER_DELAY_EXCHANGE,
   REMINDER_WAKEUP_ROUTING_KEY,
 } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
-import { createMockConfigService } from '../shared-kernel/testing/mock-config.service';
 import { InMemoryScheduledCallRepository } from '../state/testing/in-memory-scheduled-call-repository';
 import { ReminderWakeupConsumer } from './reminder-wakeup.consumer';
 
@@ -45,22 +44,12 @@ function flushMicrotasks(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
-function createConfigServiceMock() {
-  return createMockConfigService({
-    'reminder.adminEmail': 'admin@call-reservation.local',
-  });
-}
-
 describe('ReminderWakeupConsumer', () => {
   it('binds the wakeup queue to the delayed exchange', async () => {
     const channel = createChannelMock();
     const rabbitMq = createRabbitMqMock(channel);
     const repository = new InMemoryScheduledCallRepository();
-    const consumer = new ReminderWakeupConsumer(
-      rabbitMq,
-      repository,
-      createConfigServiceMock(),
-    );
+    const consumer = new ReminderWakeupConsumer(rabbitMq, repository);
 
     await consumer.onModuleInit();
 
@@ -84,12 +73,9 @@ describe('ReminderWakeupConsumer', () => {
       email: 'customer@example.com',
       scheduledAt: new Date('2026-08-10T10:00:00+03:00'),
       status: CallStatus.SCHEDULED,
+      adminEmail: 'admin@call-reservation.local',
     });
-    const consumer = new ReminderWakeupConsumer(
-      rabbitMq,
-      repository,
-      createConfigServiceMock(),
-    );
+    const consumer = new ReminderWakeupConsumer(rabbitMq, repository);
     await consumer.onModuleInit();
 
     const message = {
@@ -123,12 +109,9 @@ describe('ReminderWakeupConsumer', () => {
       email: 'customer@example.com',
       scheduledAt: new Date('2026-08-10T10:00:00+03:00'),
       status: CallStatus.SCHEDULED,
+      adminEmail: 'admin@call-reservation.local',
     });
-    const consumer = new ReminderWakeupConsumer(
-      rabbitMq,
-      repository,
-      createConfigServiceMock(),
-    );
+    const consumer = new ReminderWakeupConsumer(rabbitMq, repository);
     await consumer.onModuleInit();
 
     const redeliveredMessage = {
@@ -156,12 +139,9 @@ describe('ReminderWakeupConsumer', () => {
       email: 'customer@example.com',
       scheduledAt: new Date('2026-08-10T10:00:00+03:00'),
       status: CallStatus.REJECTED,
+      adminEmail: 'admin@call-reservation.local',
     });
-    const consumer = new ReminderWakeupConsumer(
-      rabbitMq,
-      repository,
-      createConfigServiceMock(),
-    );
+    const consumer = new ReminderWakeupConsumer(rabbitMq, repository);
     await consumer.onModuleInit();
 
     const message = {
@@ -178,11 +158,7 @@ describe('ReminderWakeupConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = createRabbitMqMock(channel);
     const repository = new InMemoryScheduledCallRepository();
-    const consumer = new ReminderWakeupConsumer(
-      rabbitMq,
-      repository,
-      createConfigServiceMock(),
-    );
+    const consumer = new ReminderWakeupConsumer(rabbitMq, repository);
     await consumer.onModuleInit();
 
     const message = {
@@ -202,11 +178,7 @@ describe('ReminderWakeupConsumer', () => {
     jest
       .spyOn(repository, 'findByRequestId')
       .mockRejectedValueOnce(new Error('mongo down'));
-    const consumer = new ReminderWakeupConsumer(
-      rabbitMq,
-      repository,
-      createConfigServiceMock(),
-    );
+    const consumer = new ReminderWakeupConsumer(rabbitMq, repository);
     await consumer.onModuleInit();
 
     const message = {
@@ -231,12 +203,9 @@ describe('ReminderWakeupConsumer', () => {
       email: 'customer@example.com',
       scheduledAt: new Date('2026-08-10T10:00:00+03:00'),
       status: CallStatus.SCHEDULED,
+      adminEmail: 'admin@call-reservation.local',
     });
-    const consumer = new ReminderWakeupConsumer(
-      rabbitMq,
-      repository,
-      createConfigServiceMock(),
-    );
+    const consumer = new ReminderWakeupConsumer(rabbitMq, repository);
     await consumer.onModuleInit();
 
     const message = {
@@ -254,11 +223,7 @@ describe('ReminderWakeupConsumer', () => {
     const rabbitMq = createRabbitMqMock(channel);
     const repository = new InMemoryScheduledCallRepository();
     const findByRequestId = jest.spyOn(repository, 'findByRequestId');
-    const consumer = new ReminderWakeupConsumer(
-      rabbitMq,
-      repository,
-      createConfigServiceMock(),
-    );
+    const consumer = new ReminderWakeupConsumer(rabbitMq, repository);
     await consumer.onModuleInit();
 
     channel.deliver(null);

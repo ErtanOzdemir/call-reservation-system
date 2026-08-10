@@ -7,6 +7,7 @@ export interface ScheduledCallInput {
   email: string;
   scheduledAt: Date;
   status: CallStatus;
+  adminEmail: string;
 }
 
 export interface ScheduledCallRepository {
@@ -21,4 +22,7 @@ export interface ScheduledCallRepository {
   findScheduledBetween(start: Date, end: Date): Promise<ScheduledCallInput[]>;
 
   findByRequestId(requestId: string): Promise<ScheduledCallInput | null>;
+
+
+  findMostRecentAdminEmail(): Promise<string | null>;
 }

@@ -1,6 +1,5 @@
 import { DigestDueEvent } from '@call-reservation/shared-types';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { DateTime } from 'luxon';
 import { randomUUID } from 'node:crypto';
@@ -24,17 +23,13 @@ const ISTANBUL_TIME_ZONE = 'Europe/Istanbul';
 @Injectable()
 export class DailyDigestService {
   private readonly logger = new Logger(DailyDigestService.name);
-  private readonly adminEmail: string;
 
   constructor(
     @Inject(SCHEDULED_CALL_REPOSITORY)
     private readonly scheduledCallRepository: ScheduledCallRepository,
     @Inject(PENDING_DIGEST_REPOSITORY)
     private readonly pendingDigestRepository: PendingDigestRepository,
-    configService: ConfigService,
-  ) {
-    this.adminEmail = configService.getOrThrow<string>('reminder.adminEmail');
-  }
+  ) {}
 
   @Cron('0 18 * * *', { timeZone: ISTANBUL_TIME_ZONE })
   async queueDailyDigest(): Promise<void> {
@@ -44,17 +39,22 @@ export class DailyDigestService {
       .startOf('day');
     const tomorrowEnd = tomorrowStart.plus({ days: 1 });
 
+    const adminEmail = await this.scheduledCallRepository.findMostRecentAdminEmail();
+
+    if (!adminEmail) {
+      this.logger.warn(
+        'Skipping digest.due — no admin has approved or canceled a call yet.',
+      );
+      return;
+    }
+
     const calls = await this.scheduledCallRepository.findScheduledBetween(
       tomorrowStart.toJSDate(),
       tomorrowEnd.toJSDate(),
     );
 
-    // Single-admin simplification: the digest always goes to ADMIN_EMAIL.
-    // See the same note in reminder-wakeup.consumer.ts — a multi-admin
-    // design (each request owned by whichever admin approved it) was kept
-    // out of scope here.
     const event: DigestDueEvent = {
-      adminEmail: this.adminEmail,
+      adminEmail,
       date: tomorrowStart.toISODate() as string,
       calls: calls.map((call) => ({
         requestId: call.requestId,

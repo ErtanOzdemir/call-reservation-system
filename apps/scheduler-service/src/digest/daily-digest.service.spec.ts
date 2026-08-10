@@ -1,15 +1,8 @@
 import { CallStatus } from '@call-reservation/shared-types';
 import { DateTime } from 'luxon';
-import { createMockConfigService } from '../shared-kernel/testing/mock-config.service';
 import { InMemoryScheduledCallRepository } from '../state/testing/in-memory-scheduled-call-repository';
 import { DailyDigestService } from './daily-digest.service';
 import { InMemoryPendingDigestRepository } from './testing/in-memory-pending-digest-repository';
-
-function createConfigServiceMock() {
-  return createMockConfigService({
-    'reminder.adminEmail': 'admin@call-reservation.local',
-  });
-}
 
 function tomorrowIstanbul(): DateTime {
   return DateTime.now()
@@ -28,11 +21,11 @@ describe('DailyDigestService', () => {
       email: 'customer@example.com',
       scheduledAt: tomorrow.set({ hour: 10 }).toJSDate(),
       status: CallStatus.SCHEDULED,
+      adminEmail: 'admin@call-reservation.local',
     });
     const service = new DailyDigestService(
       scheduledCallRepository,
       pendingDigestRepository,
-      createConfigServiceMock(),
     );
 
     await service.queueDailyDigest();
@@ -56,13 +49,20 @@ describe('DailyDigestService', () => {
     ]);
   });
 
-  it('still queues a digest with an empty calls list when nothing is scheduled', async () => {
+  it('still queues a digest with an empty calls list when nothing is scheduled tomorrow', async () => {
     const pendingDigestRepository = new InMemoryPendingDigestRepository();
     const scheduledCallRepository = new InMemoryScheduledCallRepository();
+    // No call scheduled tomorrow, but the admin is known from an earlier one.
+    scheduledCallRepository.seed({
+      requestId: 'req-old',
+      email: 'customer@example.com',
+      scheduledAt: new Date('2020-01-01T10:00:00+03:00'),
+      status: CallStatus.CALLED,
+      adminEmail: 'admin@call-reservation.local',
+    });
     const service = new DailyDigestService(
       scheduledCallRepository,
       pendingDigestRepository,
-      createConfigServiceMock(),
     );
 
     await service.queueDailyDigest();
@@ -71,9 +71,29 @@ describe('DailyDigestService', () => {
     expect((payload as { calls: unknown[] }).calls).toEqual([]);
   });
 
+  it('skips queuing when no admin has ever approved or canceled a call', async () => {
+    const pendingDigestRepository = new InMemoryPendingDigestRepository();
+    const scheduledCallRepository = new InMemoryScheduledCallRepository();
+    const service = new DailyDigestService(
+      scheduledCallRepository,
+      pendingDigestRepository,
+    );
+
+    await expect(service.queueDailyDigest()).resolves.toBeUndefined();
+
+    expect(pendingDigestRepository.queueCalls).toEqual([]);
+  });
+
   it('treats an already-queued digest as a no-op rather than a failure', async () => {
     const pendingDigestRepository = new InMemoryPendingDigestRepository();
     const scheduledCallRepository = new InMemoryScheduledCallRepository();
+    scheduledCallRepository.seed({
+      requestId: 'req-old',
+      email: 'customer@example.com',
+      scheduledAt: new Date('2020-01-01T10:00:00+03:00'),
+      status: CallStatus.CALLED,
+      adminEmail: 'admin@call-reservation.local',
+    });
     const tomorrow = tomorrowIstanbul();
     await pendingDigestRepository.queue({
       date: tomorrow.toISODate() as string,
@@ -83,7 +103,6 @@ describe('DailyDigestService', () => {
     const service = new DailyDigestService(
       scheduledCallRepository,
       pendingDigestRepository,
-      createConfigServiceMock(),
     );
 
     await expect(service.queueDailyDigest()).resolves.toBeUndefined();
@@ -95,10 +114,16 @@ describe('DailyDigestService', () => {
       .spyOn(pendingDigestRepository, 'queue')
       .mockRejectedValueOnce(new Error('mongo down'));
     const scheduledCallRepository = new InMemoryScheduledCallRepository();
+    scheduledCallRepository.seed({
+      requestId: 'req-old',
+      email: 'customer@example.com',
+      scheduledAt: new Date('2020-01-01T10:00:00+03:00'),
+      status: CallStatus.CALLED,
+      adminEmail: 'admin@call-reservation.local',
+    });
     const service = new DailyDigestService(
       scheduledCallRepository,
       pendingDigestRepository,
-      createConfigServiceMock(),
     );
 
     await expect(service.queueDailyDigest()).resolves.toBeUndefined();

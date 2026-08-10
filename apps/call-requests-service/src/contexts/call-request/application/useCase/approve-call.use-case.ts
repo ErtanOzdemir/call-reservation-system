@@ -1,3 +1,6 @@
 export class ApproveCallUseCase {
-  constructor(public readonly id: string) {}
+  constructor(
+    public readonly id: string,
+    public readonly adminEmail: string,
+  ) {}
 }

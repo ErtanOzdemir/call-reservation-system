@@ -22,3 +22,12 @@ export class UserRecord {
 
 export type UserDocument = HydratedDocument<UserRecord>;
 export const UserSchema = SchemaFactory.createForClass(UserRecord);
+
+UserSchema.index(
+  { role: 1 },
+  {
+    name: 'unique_admin_role',
+    unique: true,
+    partialFilterExpression: { role: Role.ADMIN },
+  },
+);

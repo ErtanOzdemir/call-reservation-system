@@ -1,7 +1,8 @@
-import { AuthenticatedUser } from '@call-reservation/shared-types';
+import { AuthenticatedUser, Role } from '@call-reservation/shared-types';
 import { Inject, Injectable } from '@nestjs/common';
 import { PasswordHasherService } from '../../../shared-kernel/crypto/password-hasher.service';
 import { User } from '../domain/entities/user.entity';
+import { AdminAlreadyExistsError } from '../domain/errors/admin-already-exists.error';
 import { UserAlreadyExistsError } from '../domain/errors/user-already-exists.error';
 import {
   USER_REPOSITORY,
@@ -23,6 +24,14 @@ export class RegisterUserUseCaseHandler {
 
     if (existingUser) {
       throw new UserAlreadyExistsError();
+    }
+
+    if (useCase.role === Role.ADMIN) {
+      const adminExists = await this.userRepository.existsByRole(Role.ADMIN);
+
+      if (adminExists) {
+        throw new AdminAlreadyExistsError();
+      }
     }
 
     const passwordHash = await this.passwordHasher.hash(useCase.password);

@@ -6,6 +6,7 @@ import {
 
 export class InMemoryScheduledCallRepository implements ScheduledCallRepository {
   private readonly records = new Map<string, ScheduledCallInput>();
+  private lastAdminEmail: string | null = null;
   upsertCalls: Array<{
     record: ScheduledCallInput;
     options?: { scheduleReminderAt: Date; eventId: string };
@@ -14,6 +15,7 @@ export class InMemoryScheduledCallRepository implements ScheduledCallRepository 
 
   seed(record: ScheduledCallInput): void {
     this.records.set(record.requestId, record);
+    this.lastAdminEmail = record.adminEmail;
   }
 
   async upsert(
@@ -22,6 +24,7 @@ export class InMemoryScheduledCallRepository implements ScheduledCallRepository 
   ): Promise<void> {
     this.upsertCalls.push({ record, options });
     this.records.set(record.requestId, record);
+    this.lastAdminEmail = record.adminEmail;
   }
 
   async cancel(requestId: string): Promise<void> {
@@ -33,6 +36,7 @@ export class InMemoryScheduledCallRepository implements ScheduledCallRepository 
         ...existing,
         status: CallStatus.CANCELED,
       });
+      this.lastAdminEmail = existing.adminEmail;
     }
   }
 
@@ -52,5 +56,9 @@ export class InMemoryScheduledCallRepository implements ScheduledCallRepository 
 
   async findByRequestId(requestId: string): Promise<ScheduledCallInput | null> {
     return this.records.get(requestId) ?? null;
+  }
+
+  async findMostRecentAdminEmail(): Promise<string | null> {
+    return this.lastAdminEmail;
   }
 }

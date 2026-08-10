@@ -8,6 +8,7 @@ describe('renderCallApprovedEmail', () => {
       email: 'customer@example.com',
       scheduledAt: '2026-08-10T10:00:00+03:00',
       approvedAt: '2026-08-08T09:00:00+03:00',
+      adminEmail: 'admin@example.com',
     };
 
     const email = renderCallApprovedEmail(event);

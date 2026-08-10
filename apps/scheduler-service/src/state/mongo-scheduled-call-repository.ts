@@ -74,6 +74,7 @@ export class MongoScheduledCallRepository implements ScheduledCallRepository {
       email: record.email,
       scheduledAt: record.scheduledAt,
       status: record.status,
+      adminEmail: record.adminEmail,
     }));
   }
 
@@ -91,6 +92,16 @@ export class MongoScheduledCallRepository implements ScheduledCallRepository {
       email: record.email,
       scheduledAt: record.scheduledAt,
       status: record.status,
+      adminEmail: record.adminEmail,
     };
+  }
+
+  async findMostRecentAdminEmail(): Promise<string | null> {
+    const record = await this.scheduledCallModel
+      .findOne({})
+      .sort({ updatedAt: -1 })
+      .exec();
+
+    return record?.adminEmail ?? null;
   }
 }

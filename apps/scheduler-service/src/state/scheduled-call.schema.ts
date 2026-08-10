@@ -36,6 +36,9 @@ export class ScheduledCallRecord {
   @Prop({ required: true, enum: Object.values(CallStatus), type: String })
   status!: CallStatus;
 
+  @Prop({ required: true, trim: true, lowercase: true })
+  adminEmail!: string;
+
   /**
    * At most one pending reminder per request, ever — a single embedded
    * field (not an array) so re-processing a redelivered call.approved is a

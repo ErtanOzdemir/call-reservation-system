@@ -16,7 +16,7 @@ describe('ApproveCallUseCaseHandler', () => {
     );
     const handler = new ApproveCallUseCaseHandler(repository);
 
-    const result = await handler.execute(new ApproveCallUseCase('req-1'));
+    const result = await handler.execute(new ApproveCallUseCase('req-1', 'admin@example.com'));
 
     expect(result.status).toBe(CallStatus.SCHEDULED);
     expect(repository.events).toEqual([
@@ -28,6 +28,7 @@ describe('ApproveCallUseCaseHandler', () => {
           email: 'customer@example.com',
           scheduledAt: '2026-08-10T07:00:00.000Z',
           approvedAt: expect.any(String),
+          adminEmail: 'admin@example.com',
         },
       },
     ]);
@@ -38,7 +39,7 @@ describe('ApproveCallUseCaseHandler', () => {
     const handler = new ApproveCallUseCaseHandler(repository);
 
     await expect(
-      handler.execute(new ApproveCallUseCase('missing')),
+      handler.execute(new ApproveCallUseCase('missing', 'admin@example.com')),
     ).rejects.toBeInstanceOf(CallRequestNotFoundError);
   });
 
@@ -50,7 +51,7 @@ describe('ApproveCallUseCaseHandler', () => {
     const handler = new ApproveCallUseCaseHandler(repository);
 
     await expect(
-      handler.execute(new ApproveCallUseCase('req-1')),
+      handler.execute(new ApproveCallUseCase('req-1', 'admin@example.com')),
     ).rejects.toBeInstanceOf(InvalidStateTransitionError);
   });
 
@@ -64,7 +65,7 @@ describe('ApproveCallUseCaseHandler', () => {
     jest.spyOn(repository, 'transition').mockResolvedValueOnce(null);
 
     await expect(
-      handler.execute(new ApproveCallUseCase('req-1')),
+      handler.execute(new ApproveCallUseCase('req-1', 'admin@example.com')),
     ).rejects.toBeInstanceOf(InvalidStateTransitionError);
   });
 });
