@@ -1,9 +1,9 @@
 import { Role } from '@call-reservation/shared-types';
-import { PasswordHasherService } from '../../../shared-kernel/crypto/password-hasher.service';
+import { MockPasswordHasherService } from '../../../shared-kernel/crypto/testing/mock-password-hasher.service';
 import { User } from '../../user/domain/entities/user.entity';
-import { UserRepositoryPort } from '../../user/domain/ports/user-repository.port';
+import { InMemoryUserRepository } from '../../user/application/testing/in-memory-user-repository';
 import { InvalidCredentialsError } from '../domain/errors/invalid-credentials.error';
-import { TokenIssuerPort } from '../domain/ports/token-issuer.port';
+import { MockTokenIssuer, MOCK_ISSUED_TOKEN } from './testing/mock-token-issuer';
 import { LoginUseCase } from './useCase/login.use-case';
 import { LoginUseCaseHandler } from './login.use-case-handler';
 
@@ -11,70 +11,57 @@ describe('LoginUseCaseHandler', () => {
   const user = new User(
     'user-id',
     'person@example.com',
-    'stored-hash',
+    'hashed:password123',
     Role.USER,
   );
-  const userRepository = {
-    findByEmail: jest.fn(),
-  } as unknown as UserRepositoryPort;
-  const passwordHasher = {
-    compare: jest.fn(),
-  } as unknown as PasswordHasherService;
-  const tokenIssuer = {
-    issue: jest.fn(),
-  } as unknown as TokenIssuerPort;
-  const handler = new LoginUseCaseHandler(
-    userRepository,
-    passwordHasher,
-    tokenIssuer,
-  );
+
+  let userRepository: InMemoryUserRepository;
+  let passwordHasher: MockPasswordHasherService;
+  let tokenIssuer: MockTokenIssuer;
+  let handler: LoginUseCaseHandler;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    userRepository = new InMemoryUserRepository();
+    passwordHasher = new MockPasswordHasherService();
+    tokenIssuer = new MockTokenIssuer();
+    handler = new LoginUseCaseHandler(userRepository, passwordHasher, tokenIssuer);
   });
 
   it('returns a token and a password-free user response', async () => {
-    jest.mocked(userRepository.findByEmail).mockResolvedValue(user);
-    jest.mocked(passwordHasher.compare).mockResolvedValue(true);
-    jest.mocked(tokenIssuer.issue).mockResolvedValue('signed-token');
+    userRepository.seed(user);
+    const findByEmail = jest.spyOn(userRepository, 'findByEmail');
 
     await expect(
       handler.execute(new LoginUseCase(' PERSON@Example.com ', 'password123')),
     ).resolves.toEqual({
-      accessToken: 'signed-token',
+      accessToken: MOCK_ISSUED_TOKEN,
       user: {
         id: 'user-id',
         email: 'person@example.com',
         role: Role.USER,
       },
     });
-    expect(userRepository.findByEmail).toHaveBeenCalledWith(
-      'person@example.com',
-    );
-    expect(passwordHasher.compare).toHaveBeenCalledWith(
-      'password123',
-      'stored-hash',
-    );
+    expect(findByEmail).toHaveBeenCalledWith('person@example.com');
+    expect(passwordHasher.compareCalls).toEqual([
+      { password: 'password123', passwordHash: 'hashed:password123' },
+    ]);
   });
 
   it('rejects an unknown email without exposing which credential failed', async () => {
-    jest.mocked(userRepository.findByEmail).mockResolvedValue(null);
-
     await expect(
       handler.execute(new LoginUseCase('missing@example.com', 'password123')),
     ).rejects.toBeInstanceOf(InvalidCredentialsError);
-    expect(passwordHasher.compare).not.toHaveBeenCalled();
+    expect(passwordHasher.compareCalls).toEqual([]);
   });
 
   it('rejects an incorrect password', async () => {
-    jest.mocked(userRepository.findByEmail).mockResolvedValue(user);
-    jest.mocked(passwordHasher.compare).mockResolvedValue(false);
+    userRepository.seed(user);
 
     await expect(
       handler.execute(
         new LoginUseCase('person@example.com', 'incorrect-password'),
       ),
     ).rejects.toBeInstanceOf(InvalidCredentialsError);
-    expect(tokenIssuer.issue).not.toHaveBeenCalled();
+    expect(tokenIssuer.issuedFor).toEqual([]);
   });
 });
