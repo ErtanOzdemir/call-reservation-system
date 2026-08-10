@@ -6,6 +6,24 @@ RabbitMQ. This document covers
 how to run the project, how it is structured, and the assumptions and
 decisions made during implementation.
 
+## Table of contents
+
+- [Tech stack](#tech-stack)
+- [High-level architecture](#high-level-architecture)
+  - [Which event goes where, and why](#which-event-goes-where-and-why)
+  - [Example: what happens when a user creates a call request](#example-what-happens-when-a-user-creates-a-call-request)
+  - [Example: what happens when an admin approves a call](#example-what-happens-when-an-admin-approves-a-call)
+  - [Example: what happens when an admin cancels a call](#example-what-happens-when-an-admin-cancels-a-call)
+- [Why hexagonal architecture — only in Call Requests Service](#why-hexagonal-architecture--only-in-call-requests-service)
+- [No polling: how Scheduler learns about the future](#no-polling-how-scheduler-learns-about-the-future)
+- [Call lifecycle & email notifications](#call-lifecycle--email-notifications)
+- [Assumptions & architectural decisions](#assumptions--architectural-decisions)
+- [Folder structure](#folder-structure)
+  - [Inside `call-requests-service` — ports & adapters](#inside-call-requests-service--ports--adapters)
+- [Running with Docker](#running-with-docker)
+- [Local development](#local-development)
+- [Viewing the mock emails](#viewing-the-mock-emails)
+
 ## Tech stack
 
 - **Workspace:** Nx monorepo
@@ -17,91 +35,129 @@ decisions made during implementation.
 
 ## High-level architecture
 
-The frontend only calls Call Requests Service. Scheduler Service and
-Communication Service do not call Call Requests Service's API and do not
-share its database; they receive state changes as RabbitMQ events on the
-`call.events` exchange. This is required by the assignment, which prohibits
-polling between services.
+No service polls another, and no service reads another's database. The
+frontend only talks to Call Requests Service over REST. Everything else —
+Scheduler Service and Communication Service — only reacts to events on
+RabbitMQ.
 
 ```mermaid
 flowchart LR
-    FE["Web Frontend<br/>User view · Admin view"] -->|REST| CRS
-    CRS["Call Requests Service<br/>REST API · source of truth<br/>working-hours & validation logic"] -->|reads / writes| MDB[("MongoDB<br/>call_requests db")]
-    CRS -.->|"outbox write<br/>(same doc, same tx)"| Relay1["Outbox Dispatcher #1<br/>change-stream relay"]
-    Relay1 -->|publish| MQ{{"RabbitMQ<br/>call.events topic exchange"}}
+    FE["Web Frontend"]
 
-    MQ -->|"call.requested<br/>call.approved<br/>call.rejected<br/>call.canceled"| COM
-    MQ -->|"call.approved<br/>call.canceled"| SCH
+    subgraph CRS_SVC["Call Requests Service"]
+        CRS["REST API<br/>reserve · approve · reject<br/>cancel · mark-called"]
+        CRSDB[("MongoDB<br/>call_requests")]
+        CRSDISP["OutboxDispatcherService"]
+        CRS --> CRSDB
+        CRSDB -.->|change stream| CRSDISP
+    end
 
-    SCH["Scheduler Service<br/>only cron/interval owner"] -->|"own write:<br/>pendingReminder"| SDB[("MongoDB<br/>scheduler_state db")]
-    SDB -.->|"change stream"| Relay2["Outbox Dispatcher #2<br/>Scheduler's reminder relay"]
-    Relay2 -->|"publish (delayed,<br/>x-delay header)"| DMQ{{"RabbitMQ<br/>reminder.delay exchange"}}
-    DMQ -->|"delivered back once<br/>the delay elapses"| SCH
-    SCH -.->|"re-check state, then publish"| MQ
+    MQ{{"RabbitMQ<br/>call.events exchange"}}
 
-    SCH -->|"daily cron: write<br/>pending-digests doc"| SDB
-    SDB -.->|"change stream"| Relay3["Outbox Dispatcher #3<br/>Scheduler's digest relay"]
-    Relay3 -->|publish| MQ
+    subgraph COM_SVC["Communication Service"]
+        COM["CallEventsConsumer<br/>sends every email"]
+        COMDB[("MongoDB<br/>communication")]
+        COM --> COMDB
+    end
 
-    MQ -->|"reminder.due<br/>digest.due"| COM
+    subgraph SCH_SVC["Scheduler Service"]
+        SCH["CallEventsConsumer ·<br/>ReminderWakeupConsumer ·<br/>DailyDigestService (cron)"]
+        SCHDB[("MongoDB<br/>scheduler")]
+        REMDISP["ReminderOutboxDispatcherService"]
+        DIGDISP["DigestOutboxDispatcherService"]
+        SCH --> SCHDB
+        SCHDB -.->|change stream| REMDISP
+        SCHDB -.->|change stream| DIGDISP
+    end
 
-    COM["Communication Service<br/>sender of email<br/>templates + SMTP<br/>dedupes by eventId"] -->|"claim / release<br/>by eventId"| CDB[("MongoDB<br/>communication db")]
-    COM --> MH[["MailHog<br/>mock inbox"]]
+    DLY{{"RabbitMQ<br/>reminder.delay exchange"}}
+
+    FE -->|REST| CRS
+    CRSDISP -->|"call.requested · call.approved<br/>call.rejected · call.canceled"| MQ
+    MQ -->|"all six events"| COM
+    MQ -->|"call.approved · call.canceled"| SCH
+    REMDISP -->|"schedule a wakeup,<br/>2h before the call"| DLY
+    DLY -.->|"delivered back once<br/>the delay elapses"| SCH
+    SCH -->|"reminder.due<br/>(only if still SCHEDULED)"| MQ
+    DIGDISP -->|"digest.due"| MQ
 ```
 
-Notes on the diagram:
+### Which event goes where, and why
 
-- Call Requests Service does not publish to RabbitMQ directly. It writes the
-  state change and the outbox event in one atomic Mongo write. Outbox
-  Dispatcher #1 (`OutboxDispatcherService`) is a separate process inside the
-  same service that tails that collection's MongoDB change stream and
-  publishes to RabbitMQ when it sees a matching write.
-- The four lifecycle events — `call.requested`, `call.approved`,
-  `call.rejected`, `call.canceled` — are consumed by Communication Service
-  directly from the exchange. They are not routed through Scheduler.
-  Communication Service binds its own queue to these routing keys because it
-  only needs to react to the event, not hold any state.
-- Scheduler binds to a narrower set of routing keys — `call.approved`,
-  `call.canceled` — which is what it needs to build its own local state.
-  It does not bind `call.requested` or `call.rejected`: a request that's
-  still pending, or was rejected, was never scheduled and needs no reminder
-  or digest entry, so there's nothing for Scheduler to do with either event.
-  `handleCallApproved`'s `upsert(..., {upsert:true})` creates Scheduler's
-  local document from scratch on approval — it doesn't depend on an earlier
-  `call.requested` write.
-- Scheduler also runs its own outbox dispatcher (`ReminderOutboxDispatcherService`,
-  Outbox Dispatcher #2 above), independent from Call Requests Service's. When
-  it consumes `call.approved`, it writes `pendingReminder{ targetFireAt }`
-  onto its own document in its own database. Its own change-stream relay
-  picks that write up and publishes it to the `reminder.delay` exchange with
-  the remaining delay set as an `x-delay` header. When the delay elapses,
-  RabbitMQ delivers the message back to Scheduler
-  (`ReminderWakeupConsumer`), which checks that the call is still
-  `SCHEDULED` (it may have been canceled in the meantime) and only then
-  publishes `reminder.due` onto `call.events`.
-- `digest.due` goes through a third, dedicated outbox
-  (`DigestOutboxDispatcherService`, Outbox Dispatcher #3 above). The daily
-  cron (`DailyDigestService`) only computes tomorrow's calls and writes one
-  document to a `pending-digests` collection — it never talks to RabbitMQ
-  itself. The dispatcher tails that collection's change stream the same way
-  the other two do, publishes, then deletes the document. This means a
-  RabbitMQ outage (or the process dying) at exactly 18:00 no longer loses
-  that day's digest outright: it sits in `pending-digests` until the next
-  catch-up sweep — on the next restart, or as soon as the broker is back —
-  delivers it. Earlier versions of this service published directly from the
-  cron job with a few immediate retries and no persistence; that meant a
-  broker outage spanning the retry window silently dropped the digest until
-  the next day.
-- Every event on the diagram carries an `eventId` (a `randomUUID()`, minted
-  wherever that event is first written to an outbox — it is not part of the
-  event's own TypeScript type, it's merged onto the JSON payload at publish
-  time). `reminder.due` is the one exception worth calling out: rather than
-  minting its own, it reuses `reminder.wakeup`'s `eventId` — see
-  [`reminder-wakeup.consumer.ts`](apps/scheduler-service/src/consumers/reminder-wakeup.consumer.ts)
-  — so that a redelivered wakeup still produces a `reminder.due` Communication
-  Service can recognize as the same event. Communication Service is the only
-  consumer that uses `eventId`: see "Communication Service dedupes emails by
-  eventId" below.
+| Event | Published by | Consumed by | What it triggers |
+|---|---|---|---|
+| `call.requested` | Call Requests Service | Communication | "We got your request" email to the customer |
+| `call.approved` | Call Requests Service | Communication, Scheduler | Communication emails the customer; Scheduler starts tracking this call so it can remind later |
+| `call.rejected` | Call Requests Service | Communication | Rejection email to the customer |
+| `call.canceled` | Call Requests Service | Communication, Scheduler | Cancellation email to the customer; Scheduler stops tracking the call |
+| `reminder.due` | Scheduler Service | Communication | Email to both customer and admin, 2 hours before the call |
+| `digest.due` | Scheduler Service | Communication | Daily summary email to the admin |
+
+### Example: what happens when a user creates a call request
+
+1. User picks an available slot and submits the form (email, phone number,
+   time). Call Requests Service re-validates working hours and that the
+   slot is still free.
+2. It writes **one** document: the request as `REQUESTED`, with a
+   `call.requested` event embedded right inside that same write. This is
+   the **outbox pattern** — the state change and the event it produces land
+   together, atomically, so they can never go out of sync, and nothing is
+   lost even if RabbitMQ happens to be unreachable at that exact instant.
+3. A small background piece inside Call Requests Service — the **outbox
+   dispatcher** — is watching that collection's MongoDB change stream. It
+   notices the new embedded event, publishes `call.requested` to RabbitMQ,
+   and then removes it from the document.
+4. Communication Service picks up `call.requested` from RabbitMQ and emails
+   the customer: "we got your request."
+5. Scheduler Service isn't listening for `call.requested` at all — nothing
+   is scheduled yet, since no admin has approved it.
+
+### Example: what happens when an admin approves a call
+
+1. Admin clicks **Approve**. Call Requests Service writes one update: the
+   call's status flips to `SCHEDULED`, with `call.approved` embedded in
+   that same write — the same outbox pattern as above.
+2. Its outbox dispatcher relays `call.approved` to RabbitMQ.
+3. Communication Service sees it and emails the customer.
+4. Scheduler Service sees it too, and runs the *same pattern on its own
+   database*: it writes a local record for this call (customer email, time,
+   admin email), with a reminder wakeup — timed for 2 hours before the
+   call — embedded in that write. This is a second, independent outbox,
+   entirely separate from Call Requests Service's; Scheduler's own
+   dispatcher relays the wakeup to RabbitMQ's delayed exchange.
+5. Two hours before the call, RabbitMQ delivers that wakeup back to
+   Scheduler Service. It checks its own database — still `SCHEDULED`? If
+   yes, it publishes `reminder.due` **directly** this time, no outbox in
+   between: there's no accompanying state change it needs to stay in sync
+   with, so if the publish fails, Scheduler just leaves the wakeup message
+   unacknowledged and RabbitMQ redelivers it later, retrying the whole
+   check-and-publish from scratch.
+6. Communication Service picks up `reminder.due` and emails both the
+   customer and the admin.
+7. Every day at 18:00, Scheduler Service checks its own database for
+   tomorrow's calls, writes a digest document into a separate collection —
+   a third, small outbox — and its dispatcher relays it as `digest.due`.
+   Communication Service emails the admin the summary.
+
+### Example: what happens when an admin cancels a call
+
+1. Admin clicks **Cancel** on a `SCHEDULED` call, an hour before its
+   reminder would fire. Call Requests Service writes the status as
+   `CANCELED`, with `call.canceled` embedded in the same write; its outbox
+   dispatcher relays it to RabbitMQ as before.
+2. Communication Service sees `call.canceled` and emails the customer.
+3. Scheduler Service also sees it and updates its own local record for that
+   call to `CANCELED` — a plain write this time, no event to relay.
+4. The reminder wakeup scheduled back when the call was approved is still
+   sitting in RabbitMQ's delayed exchange — canceling the call doesn't
+   remove it. An hour later, RabbitMQ delivers it anyway. Scheduler checks
+   its own database, sees the call is no longer `SCHEDULED`, and just
+   discards the wakeup instead of publishing `reminder.due`. No reminder
+   email goes out.
+
+See "No polling: how Scheduler learns about the future" below for how
+events actually get published, and why Scheduler ends up consuming a
+message it sent itself.
 
 ## Why hexagonal architecture — only in Call Requests Service
 
@@ -149,14 +205,15 @@ Two mechanisms are used to satisfy this.
    that needs to publish an event does so by writing the event into Mongo
    first, then a dispatcher tails a change stream and publishes to RabbitMQ
    when it sees a matching write, clearing the pending record afterward.
-   Three independent instances of this run across the two services — see
-   "Outbox Dispatcher #1/#2/#3" in the diagram above:
+   Three independent instances of this run across the two services:
    - Call Requests Service: `pendingEvents` embedded on `CallRequestRecord`,
      in the same atomic write as the state change it describes.
    - Scheduler (reminders): `pendingReminder` embedded on
      `ScheduledCallRecord`, written when `call.approved` is consumed.
    - Scheduler (digest): a standalone `pending-digests` collection, one
-     document per not-yet-delivered day, written by the daily cron.
+     document per not-yet-delivered day, written by the daily cron and only
+     deleted after RabbitMQ confirms the publish — a broker outage at
+     exactly 18:00 delays that day's digest instead of losing it.
 
    If a process crashes between the state write and the publish, the
    pending record is picked up on the next change-stream catch-up sweep at
@@ -171,10 +228,23 @@ Two mechanisms are used to satisfy this.
 
 2. **Delayed exchange instead of a sweep job for reminders.** When a call is
    approved, the 2-hour-before reminder delay is computed once, at approval
-   time, and the message is handed to RabbitMQ's `x-delayed-message`
-   exchange (`reminder.delay`). RabbitMQ holds the message and releases it
-   when the delay elapses; Scheduler does not run a periodic check for due
-   reminders. The only cron job in the system is the once-a-day digest
+   time, and handed to RabbitMQ's `x-delayed-message` exchange
+   (`reminder.delay`) as a wakeup message — itself sent through the outbox
+   above. RabbitMQ holds it and delivers it back to Scheduler once the delay
+   elapses; no periodic check for due reminders ever runs.
+
+   RabbitMQ has no way to retract a message already sitting in that delayed
+   exchange, so canceling a call doesn't remove its pending wakeup — it
+   still arrives on schedule. Rather than fight that, Scheduler just
+   re-checks the call's current status when the wakeup comes back
+   (`ReminderWakeupConsumer`) and only publishes `reminder.due` if it's
+   still `SCHEDULED`; otherwise it discards the wakeup and no email goes
+   out. This is also the one event published directly rather than through
+   the outbox — there's no accompanying state write to keep it in sync
+   with, so a failed publish just leaves the wakeup unacknowledged and
+   RabbitMQ redelivers it later.
+
+   The only cron job in the system is the once-a-day digest
    (`DailyDigestService`, `@Cron('0 18 * * *')`), which is a genuinely
    time-based trigger rather than a check for changed state.
 
