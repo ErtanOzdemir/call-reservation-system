@@ -1,26 +1,13 @@
 import { DigestDueEvent } from '@call-reservation/shared-types';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectModel } from '@nestjs/mongoose';
 import { Cron } from '@nestjs/schedule';
 import { DateTime } from 'luxon';
-import { Model } from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import { ScheduledCallRepository } from '../state/scheduled-call.repository';
-import { PendingDigestDocument, PendingDigestRecord } from './pending-digest.schema';
+import { PendingDigestRepository } from './pending-digest.repository';
 
 const ISTANBUL_TIME_ZONE = 'Europe/Istanbul';
-
-const MONGO_DUPLICATE_KEY_ERROR_CODE = 11000;
-
-function isDuplicateKeyError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code: unknown }).code === MONGO_DUPLICATE_KEY_ERROR_CODE
-  );
-}
 
 /**
  * The system's only cron job (see project constraint: only scheduler-service
@@ -35,8 +22,7 @@ export class DailyDigestService {
 
   constructor(
     private readonly scheduledCallRepository: ScheduledCallRepository,
-    @InjectModel(PendingDigestRecord.name)
-    private readonly pendingDigestModel: Model<PendingDigestDocument>,
+    private readonly pendingDigestRepository: PendingDigestRepository,
     configService: ConfigService,
   ) {
     this.adminEmail = configService.getOrThrow<string>('reminder.adminEmail');
@@ -70,20 +56,21 @@ export class DailyDigestService {
     };
 
     try {
-      await this.pendingDigestModel.create({
+      const queued = await this.pendingDigestRepository.queue({
         date: event.date,
         eventId: randomUUID(),
         payload: { ...event },
       });
-      this.logger.log(
-        `Queued digest.due for ${event.date} with ${event.calls.length} call(s).`,
-      );
-    } catch (error) {
-      if (isDuplicateKeyError(error)) {
+
+      if (!queued) {
         this.logger.warn(`Digest for ${event.date} was already queued.`);
         return;
       }
 
+      this.logger.log(
+        `Queued digest.due for ${event.date} with ${event.calls.length} call(s).`,
+      );
+    } catch (error) {
       this.logger.error(`Failed to queue digest.due for ${event.date}.`, error);
     }
   }

@@ -1,18 +1,17 @@
 import { CallStatus } from '@call-reservation/shared-types';
 import { ConfigService } from '@nestjs/config';
 import { DateTime } from 'luxon';
-import { Model } from 'mongoose';
 import {
   ScheduledCallInput,
   ScheduledCallRepository,
 } from '../state/scheduled-call.repository';
 import { DailyDigestService } from './daily-digest.service';
-import { PendingDigestDocument } from './pending-digest.schema';
+import { PendingDigestRepository } from './pending-digest.repository';
 
-function createPendingDigestModelMock(
-  create: jest.Mock = jest.fn().mockResolvedValue(undefined),
+function createPendingDigestRepositoryMock(
+  queue: jest.Mock = jest.fn().mockResolvedValue(true),
 ) {
-  return { create } as unknown as Model<PendingDigestDocument>;
+  return { queue } as unknown as PendingDigestRepository;
 }
 
 function createConfigServiceMock(): ConfigService {
@@ -30,8 +29,8 @@ function tomorrowIstanbul(): DateTime {
 
 describe('DailyDigestService', () => {
   it("queues digest.due with tomorrow's SCHEDULED calls, read from local state only", async () => {
-    const create = jest.fn().mockResolvedValue(undefined);
-    const pendingDigestModel = createPendingDigestModelMock(create);
+    const queue = jest.fn().mockResolvedValue(true);
+    const pendingDigestRepository = createPendingDigestRepositoryMock(queue);
     const tomorrow = tomorrowIstanbul();
     const scheduledCall: ScheduledCallInput = {
       requestId: 'req-1',
@@ -45,7 +44,7 @@ describe('DailyDigestService', () => {
     } as unknown as ScheduledCallRepository;
     const service = new DailyDigestService(
       repository,
-      pendingDigestModel,
+      pendingDigestRepository,
       createConfigServiceMock(),
     );
 
@@ -55,7 +54,7 @@ describe('DailyDigestService', () => {
       tomorrow.toJSDate(),
       tomorrow.plus({ days: 1 }).toJSDate(),
     );
-    expect(create).toHaveBeenCalledWith({
+    expect(queue).toHaveBeenCalledWith({
       date: tomorrow.toISODate(),
       eventId: expect.any(String),
       payload: {
@@ -73,32 +72,32 @@ describe('DailyDigestService', () => {
   });
 
   it('still queues a digest with an empty calls list when nothing is scheduled', async () => {
-    const create = jest.fn().mockResolvedValue(undefined);
-    const pendingDigestModel = createPendingDigestModelMock(create);
+    const queue = jest.fn().mockResolvedValue(true);
+    const pendingDigestRepository = createPendingDigestRepositoryMock(queue);
     const repository = {
       findScheduledBetween: jest.fn().mockResolvedValue([]),
     } as unknown as ScheduledCallRepository;
     const service = new DailyDigestService(
       repository,
-      pendingDigestModel,
+      pendingDigestRepository,
       createConfigServiceMock(),
     );
 
     await service.queueDailyDigest();
 
-    const [{ payload }] = create.mock.calls[0];
+    const [{ payload }] = queue.mock.calls[0];
     expect((payload as { calls: unknown[] }).calls).toEqual([]);
   });
 
-  it('treats a duplicate-key error as "already queued" rather than a failure', async () => {
-    const create = jest.fn().mockRejectedValue({ code: 11000 });
-    const pendingDigestModel = createPendingDigestModelMock(create);
+  it('treats an already-queued digest as a no-op rather than a failure', async () => {
+    const queue = jest.fn().mockResolvedValue(false);
+    const pendingDigestRepository = createPendingDigestRepositoryMock(queue);
     const repository = {
       findScheduledBetween: jest.fn().mockResolvedValue([]),
     } as unknown as ScheduledCallRepository;
     const service = new DailyDigestService(
       repository,
-      pendingDigestModel,
+      pendingDigestRepository,
       createConfigServiceMock(),
     );
 
@@ -106,14 +105,14 @@ describe('DailyDigestService', () => {
   });
 
   it('logs and swallows a genuine queue failure rather than crashing the scheduler', async () => {
-    const create = jest.fn().mockRejectedValue(new Error('mongo down'));
-    const pendingDigestModel = createPendingDigestModelMock(create);
+    const queue = jest.fn().mockRejectedValue(new Error('mongo down'));
+    const pendingDigestRepository = createPendingDigestRepositoryMock(queue);
     const repository = {
       findScheduledBetween: jest.fn().mockResolvedValue([]),
     } as unknown as ScheduledCallRepository;
     const service = new DailyDigestService(
       repository,
-      pendingDigestModel,
+      pendingDigestRepository,
       createConfigServiceMock(),
     );
 

@@ -1,25 +1,13 @@
-import { CallStatus } from '@call-reservation/shared-types';
+import { CallStatus, isMongoDuplicateKeyError } from '@call-reservation/shared-types';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CallRequest } from '../../domain/entities/call-request.entity';
 import { SlotUnavailableError } from '../../domain/errors/slot-unavailable.error';
+import { CallLifecyclePolicy } from '../../domain/policies/call-lifecycle.policy';
 import { OutboxEvent } from '../../domain/outbox-event';
 import { CallRequestRepositoryPort } from '../../domain/ports/call-request-repository.port';
 import { CallRequestDocument, CallRequestRecord } from './call-request.schema';
-
-/** MongoDB's "duplicate key" error code — thrown when a unique index (here,
- * the partial index on scheduledAt) rejects the write. */
-const MONGO_DUPLICATE_KEY_ERROR_CODE = 11000;
-
-function isDuplicateKeyError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code: unknown }).code === MONGO_DUPLICATE_KEY_ERROR_CODE
-  );
-}
 
 @Injectable()
 export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
@@ -36,7 +24,7 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
     const existingRequest = await this.callRequestModel
       .exists({
         scheduledAt,
-        status: { $in: [CallStatus.REQUESTED, CallStatus.SCHEDULED] },
+        status: { $in: CallLifecyclePolicy.ACTIVE_STATUSES },
       })
       .exec();
 
@@ -80,7 +68,7 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
 
       return this.toDomain(record);
     } catch (error) {
-      if (isDuplicateKeyError(error)) {
+      if (isMongoDuplicateKeyError(error)) {
         throw new SlotUnavailableError();
       }
 

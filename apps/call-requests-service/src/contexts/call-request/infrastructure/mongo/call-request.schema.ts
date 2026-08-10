@@ -1,6 +1,7 @@
 import { CallStatus } from '@call-reservation/shared-types';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
+import { CallLifecyclePolicy } from '../../domain/policies/call-lifecycle.policy';
 
 @Schema()
 export class OutboxEventRecord {
@@ -66,7 +67,7 @@ CallRequestSchema.index(
     name: 'unique_active_scheduled_at',
     unique: true,
     partialFilterExpression: {
-      status: { $in: [CallStatus.REQUESTED, CallStatus.SCHEDULED] },
+      status: { $in: CallLifecyclePolicy.ACTIVE_STATUSES },
     },
   },
 );

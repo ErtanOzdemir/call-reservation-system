@@ -1,7 +1,7 @@
-import { CallStatus } from '@call-reservation/shared-types';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { CallLifecyclePolicy } from '../../../call-request/domain/policies/call-lifecycle.policy';
 import {
   CallRequestDocument,
   CallRequestRecord,
@@ -23,7 +23,7 @@ export class AvailabilityRepository {
       .find(
         {
           scheduledAt: { $gte: dayStart, $lt: dayEnd },
-          status: { $in: [CallStatus.REQUESTED, CallStatus.SCHEDULED] },
+          status: { $in: CallLifecyclePolicy.ACTIVE_STATUSES },
         },
         { scheduledAt: 1 },
       )

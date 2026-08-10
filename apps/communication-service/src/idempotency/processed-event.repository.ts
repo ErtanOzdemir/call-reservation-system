@@ -1,3 +1,4 @@
+import { isMongoDuplicateKeyError } from '@call-reservation/shared-types';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -5,19 +6,6 @@ import {
   ProcessedEventDocument,
   ProcessedEventRecord,
 } from './processed-event.schema';
-
-/** MongoDB's "duplicate key" error code — thrown when the unique index on
- * eventId rejects a second claim of the same event. */
-const MONGO_DUPLICATE_KEY_ERROR_CODE = 11000;
-
-function isDuplicateKeyError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code: unknown }).code === MONGO_DUPLICATE_KEY_ERROR_CODE
-  );
-}
 
 @Injectable()
 export class ProcessedEventRepository {
@@ -33,7 +21,7 @@ export class ProcessedEventRepository {
       await this.processedEventModel.create({ eventId });
       return true;
     } catch (error) {
-      if (isDuplicateKeyError(error)) {
+      if (isMongoDuplicateKeyError(error)) {
         return false;
       }
       throw error;

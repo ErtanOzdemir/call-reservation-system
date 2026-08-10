@@ -1,4 +1,4 @@
-import { Role } from '@call-reservation/shared-types';
+import { Role, isMongoDuplicateKeyError } from '@call-reservation/shared-types';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -30,7 +30,7 @@ export class UserRepositoryAdapter implements UserRepositoryPort {
 
       return this.toDomain(record);
     } catch (error) {
-      if (this.isDuplicateKeyError(error)) {
+      if (isMongoDuplicateKeyError(error)) {
         throw new UserAlreadyExistsError();
       }
 
@@ -44,15 +44,6 @@ export class UserRepositoryAdapter implements UserRepositoryPort {
       record.email,
       record.passwordHash,
       record.role as Role,
-    );
-  }
-
-  private isDuplicateKeyError(error: unknown): error is { code: number } {
-    return (
-      typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      error.code === 11000
     );
   }
 }
