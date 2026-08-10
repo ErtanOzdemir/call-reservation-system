@@ -59,7 +59,7 @@ describe('App', () => {
     );
     fetchMock.mockResolvedValueOnce(jsonResponse([]));
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ date: '2026-08-10', availableSlots: [] }),
+      jsonResponse({ date: '2026-08-10', slots: [] }),
     );
 
     renderApp('/admin');

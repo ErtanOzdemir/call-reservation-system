@@ -272,6 +272,17 @@ p {
   background: #2563eb;
 }
 
+.slot-button:disabled {
+  border-color: #e5e7eb;
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.slot-button:disabled:hover {
+  border-color: #e5e7eb;
+}
+
 .table-wrapper {
   overflow-x: auto;
   border: 1px solid #d1d5db;

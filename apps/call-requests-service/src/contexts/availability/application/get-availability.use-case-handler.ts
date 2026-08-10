@@ -32,7 +32,7 @@ export class GetAvailabilityUseCaseHandler {
     const slots = WorkingHoursPolicy.enumerateSlotsForDay(dayStart, new Date());
 
     if (slots.length === 0) {
-      return { date, availableSlots: [] };
+      return { date, slots: [] };
     }
 
     const occupied = await this.availabilityRepository.findOccupiedSlots(
@@ -43,9 +43,10 @@ export class GetAvailabilityUseCaseHandler {
 
     return {
       date,
-      availableSlots: slots
-        .filter((slot) => !occupiedTimestamps.has(slot.toJSDate().getTime()))
-        .map((slot) => slot.toISO() as string),
+      slots: slots.map((slot) => ({
+        time: slot.toISO() as string,
+        available: !occupiedTimestamps.has(slot.toJSDate().getTime()),
+      })),
     };
   }
 }

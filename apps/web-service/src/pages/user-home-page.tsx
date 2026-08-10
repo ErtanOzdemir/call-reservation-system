@@ -1,4 +1,4 @@
-import { CallRequestResponse } from '@call-reservation/shared-types';
+import { AvailabilitySlot, CallRequestResponse } from '@call-reservation/shared-types';
 import { FormEvent, useEffect, useState } from 'react';
 import { callRequestsApi } from '../api/call-requests-api';
 import { ApiError } from '../api/api-client';
@@ -34,7 +34,7 @@ function formatDateTime(iso: string): string {
 export function UserHomePage() {
   const { user, token } = useAuth();
   const [date, setDate] = useState(tomorrowDateInputValue());
-  const [slots, setSlots] = useState<string[]>([]);
+  const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState('');
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export function UserHomePage() {
       .getAvailability(date, token)
       .then((availability) => {
         if (isActive) {
-          setSlots(availability.availableSlots);
+          setSlots(availability.slots);
         }
       })
       .catch((error: unknown) => {
@@ -126,13 +126,21 @@ export function UserHomePage() {
         token,
       );
       setBooked(callRequest);
-      setSlots((current) => current.filter((slot) => slot !== selectedSlot));
+      setSlots((current) =>
+        current.map((slot) =>
+          slot.time === selectedSlot ? { ...slot, available: false } : slot,
+        ),
+      );
       setSelectedSlot(null);
       loadMyRequests();
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         setFormError('That slot was just taken. Please pick another one.');
-        setSlots((current) => current.filter((slot) => slot !== selectedSlot));
+        setSlots((current) =>
+          current.map((slot) =>
+            slot.time === selectedSlot ? { ...slot, available: false } : slot,
+          ),
+        );
         setSelectedSlot(null);
       } else {
         setFormError(
@@ -214,16 +222,17 @@ export function UserHomePage() {
             <div className="slot-grid">
               {slots.map((slot) => (
                 <button
-                  key={slot}
+                  key={slot.time}
                   type="button"
+                  disabled={!slot.available}
                   className={
-                    slot === selectedSlot
+                    slot.time === selectedSlot
                       ? 'slot-button slot-button-selected'
                       : 'slot-button'
                   }
-                  onClick={() => setSelectedSlot(slot)}
+                  onClick={() => setSelectedSlot(slot.time)}
                 >
-                  {formatSlot(slot)}
+                  {formatSlot(slot.time)}
                 </button>
               ))}
             </div>

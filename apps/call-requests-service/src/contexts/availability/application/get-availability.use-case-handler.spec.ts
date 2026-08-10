@@ -15,7 +15,7 @@ function nextIstanbulWeekday(): DateTime {
 }
 
 describe('GetAvailabilityUseCaseHandler', () => {
-  it('returns all sixteen slots when nothing is booked that day', async () => {
+  it('returns all sixteen slots as available when nothing is booked that day', async () => {
     const repository = new InMemoryAvailabilityRepository();
     const handler = new GetAvailabilityUseCaseHandler(repository);
     const day = nextIstanbulWeekday();
@@ -25,13 +25,15 @@ describe('GetAvailabilityUseCaseHandler', () => {
     );
 
     expect(result.date).toBe(day.toISODate());
-    expect(result.availableSlots).toHaveLength(16);
-    expect(result.availableSlots[0]).toBe(
-      day.set({ hour: 10, minute: 0 }).toISO(),
-    );
+    expect(result.slots).toHaveLength(16);
+    expect(result.slots.every((slot) => slot.available)).toBe(true);
+    expect(result.slots[0]).toEqual({
+      time: day.set({ hour: 10, minute: 0 }).toISO(),
+      available: true,
+    });
   });
 
-  it('excludes slots already held by a REQUESTED/SCHEDULED call', async () => {
+  it('marks a slot already held by a REQUESTED/SCHEDULED call as unavailable, without dropping it from the list', async () => {
     const day = nextIstanbulWeekday();
     const occupiedSlot = day.set({ hour: 11, minute: 0 }).toJSDate();
     const repository = new InMemoryAvailabilityRepository();
@@ -42,10 +44,12 @@ describe('GetAvailabilityUseCaseHandler', () => {
       new GetAvailabilityUseCase(day.toISODate() as string),
     );
 
-    expect(result.availableSlots).toHaveLength(15);
-    expect(result.availableSlots).not.toContain(
-      day.set({ hour: 11, minute: 0 }).toISO(),
-    );
+    expect(result.slots).toHaveLength(16);
+    expect(result.slots).toContainEqual({
+      time: day.set({ hour: 11, minute: 0 }).toISO(),
+      available: false,
+    });
+    expect(result.slots.filter((slot) => !slot.available)).toHaveLength(1);
   });
 
   it('returns an empty list for a weekend without querying the repository', async () => {
@@ -61,7 +65,7 @@ describe('GetAvailabilityUseCaseHandler', () => {
       new GetAvailabilityUseCase(saturday.toISODate() as string),
     );
 
-    expect(result.availableSlots).toEqual([]);
+    expect(result.slots).toEqual([]);
     expect(repository.calls).toEqual([]);
   });
 
