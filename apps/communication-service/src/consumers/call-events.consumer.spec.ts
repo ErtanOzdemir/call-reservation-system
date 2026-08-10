@@ -2,7 +2,7 @@ import {
   CALL_EVENTS_EXCHANGE,
   RoutingKey,
 } from '@call-reservation/shared-types';
-import { ProcessedEventRepository } from '../idempotency/processed-event.repository';
+import { InMemoryProcessedEventRepository } from '../idempotency/testing/in-memory-processed-event-repository';
 import { EmailSenderService } from '../shared-kernel/email/email-sender.service';
 import { RabbitMqConnectionService } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
 import { CallEventsConsumer } from './call-events.consumer';
@@ -35,13 +35,6 @@ function createEmailSenderMock() {
   };
 }
 
-function createProcessedEventsMock() {
-  return {
-    claim: jest.fn().mockResolvedValue(true),
-    release: jest.fn().mockResolvedValue(undefined),
-  };
-}
-
 function messageFor(routingKey: string, payload: unknown) {
   return {
     content: Buffer.from(JSON.stringify(payload)),
@@ -54,11 +47,11 @@ describe('CallEventsConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const emailSender = createEmailSenderMock();
-    const processedEvents = createProcessedEventsMock();
+    const processedEvents = new InMemoryProcessedEventRepository();
     const consumer = new CallEventsConsumer(
       rabbitMq,
       emailSender as unknown as EmailSenderService,
-      processedEvents as unknown as ProcessedEventRepository,
+      processedEvents,
     );
 
     await consumer.onModuleInit();
@@ -87,11 +80,11 @@ describe('CallEventsConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const emailSender = createEmailSenderMock();
-    const processedEvents = createProcessedEventsMock();
+    const processedEvents = new InMemoryProcessedEventRepository();
     const consumer = new CallEventsConsumer(
       rabbitMq,
       emailSender as unknown as EmailSenderService,
-      processedEvents as unknown as ProcessedEventRepository,
+      processedEvents,
     );
     await consumer.onModuleInit();
 
@@ -118,11 +111,11 @@ describe('CallEventsConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const emailSender = createEmailSenderMock();
-    const processedEvents = createProcessedEventsMock();
+    const processedEvents = new InMemoryProcessedEventRepository();
     const consumer = new CallEventsConsumer(
       rabbitMq,
       emailSender as unknown as EmailSenderService,
-      processedEvents as unknown as ProcessedEventRepository,
+      processedEvents,
     );
     await consumer.onModuleInit();
 
@@ -148,11 +141,11 @@ describe('CallEventsConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const emailSender = createEmailSenderMock();
-    const processedEvents = createProcessedEventsMock();
+    const processedEvents = new InMemoryProcessedEventRepository();
     const consumer = new CallEventsConsumer(
       rabbitMq,
       emailSender as unknown as EmailSenderService,
-      processedEvents as unknown as ProcessedEventRepository,
+      processedEvents,
     );
     await consumer.onModuleInit();
 
@@ -177,11 +170,11 @@ describe('CallEventsConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const emailSender = createEmailSenderMock();
-    const processedEvents = createProcessedEventsMock();
+    const processedEvents = new InMemoryProcessedEventRepository();
     const consumer = new CallEventsConsumer(
       rabbitMq,
       emailSender as unknown as EmailSenderService,
-      processedEvents as unknown as ProcessedEventRepository,
+      processedEvents,
     );
     await consumer.onModuleInit();
 
@@ -206,11 +199,11 @@ describe('CallEventsConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const emailSender = createEmailSenderMock();
-    const processedEvents = createProcessedEventsMock();
+    const processedEvents = new InMemoryProcessedEventRepository();
     const consumer = new CallEventsConsumer(
       rabbitMq,
       emailSender as unknown as EmailSenderService,
-      processedEvents as unknown as ProcessedEventRepository,
+      processedEvents,
     );
     await consumer.onModuleInit();
 
@@ -239,11 +232,11 @@ describe('CallEventsConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const emailSender = createEmailSenderMock();
-    const processedEvents = createProcessedEventsMock();
+    const processedEvents = new InMemoryProcessedEventRepository();
     const consumer = new CallEventsConsumer(
       rabbitMq,
       emailSender as unknown as EmailSenderService,
-      processedEvents as unknown as ProcessedEventRepository,
+      processedEvents,
     );
     await consumer.onModuleInit();
 
@@ -272,11 +265,11 @@ describe('CallEventsConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const emailSender = createEmailSenderMock();
-    const processedEvents = createProcessedEventsMock();
+    const processedEvents = new InMemoryProcessedEventRepository();
     const consumer = new CallEventsConsumer(
       rabbitMq,
       emailSender as unknown as EmailSenderService,
-      processedEvents as unknown as ProcessedEventRepository,
+      processedEvents,
     );
     await consumer.onModuleInit();
 
@@ -292,11 +285,11 @@ describe('CallEventsConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const emailSender = createEmailSenderMock();
-    const processedEvents = createProcessedEventsMock();
+    const processedEvents = new InMemoryProcessedEventRepository();
     const consumer = new CallEventsConsumer(
       rabbitMq,
       emailSender as unknown as EmailSenderService,
-      processedEvents as unknown as ProcessedEventRepository,
+      processedEvents,
     );
     await consumer.onModuleInit();
 
@@ -316,11 +309,11 @@ describe('CallEventsConsumer', () => {
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const emailSender = createEmailSenderMock();
     emailSender.send.mockRejectedValueOnce(new Error('SMTP unavailable'));
-    const processedEvents = createProcessedEventsMock();
+    const processedEvents = new InMemoryProcessedEventRepository();
     const consumer = new CallEventsConsumer(
       rabbitMq,
       emailSender as unknown as EmailSenderService,
-      processedEvents as unknown as ProcessedEventRepository,
+      processedEvents,
     );
     await consumer.onModuleInit();
 
@@ -342,12 +335,12 @@ describe('CallEventsConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const emailSender = createEmailSenderMock();
-    const processedEvents = createProcessedEventsMock();
-    processedEvents.claim.mockResolvedValueOnce(false);
+    const processedEvents = new InMemoryProcessedEventRepository();
+    await processedEvents.claim('event-1');
     const consumer = new CallEventsConsumer(
       rabbitMq,
       emailSender as unknown as EmailSenderService,
-      processedEvents as unknown as ProcessedEventRepository,
+      processedEvents,
     );
     await consumer.onModuleInit();
 
@@ -362,7 +355,7 @@ describe('CallEventsConsumer', () => {
     channel.deliver(message);
     await flushMicrotasks();
 
-    expect(processedEvents.claim).toHaveBeenCalledWith('event-1');
+    expect(processedEvents.claimCalls).toContain('event-1');
     expect(emailSender.send).not.toHaveBeenCalled();
     expect(channel.ack).toHaveBeenCalledWith(message);
   });
@@ -372,11 +365,11 @@ describe('CallEventsConsumer', () => {
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const emailSender = createEmailSenderMock();
     emailSender.send.mockRejectedValueOnce(new Error('SMTP unavailable'));
-    const processedEvents = createProcessedEventsMock();
+    const processedEvents = new InMemoryProcessedEventRepository();
     const consumer = new CallEventsConsumer(
       rabbitMq,
       emailSender as unknown as EmailSenderService,
-      processedEvents as unknown as ProcessedEventRepository,
+      processedEvents,
     );
     await consumer.onModuleInit();
 
@@ -391,8 +384,8 @@ describe('CallEventsConsumer', () => {
     channel.deliver(message);
     await flushMicrotasks();
 
-    expect(processedEvents.claim).toHaveBeenCalledWith('event-1');
-    expect(processedEvents.release).toHaveBeenCalledWith('event-1');
+    expect(processedEvents.claimCalls).toEqual(['event-1']);
+    expect(processedEvents.releaseCalls).toEqual(['event-1']);
     expect(channel.nack).toHaveBeenCalledWith(message, false, true);
     expect(channel.ack).not.toHaveBeenCalled();
   });
@@ -401,11 +394,11 @@ describe('CallEventsConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const emailSender = createEmailSenderMock();
-    const processedEvents = createProcessedEventsMock();
+    const processedEvents = new InMemoryProcessedEventRepository();
     const consumer = new CallEventsConsumer(
       rabbitMq,
       emailSender as unknown as EmailSenderService,
-      processedEvents as unknown as ProcessedEventRepository,
+      processedEvents,
     );
     await consumer.onModuleInit();
 
@@ -419,7 +412,7 @@ describe('CallEventsConsumer', () => {
     channel.deliver(message);
     await flushMicrotasks();
 
-    expect(processedEvents.claim).not.toHaveBeenCalled();
+    expect(processedEvents.claimCalls).toEqual([]);
     expect(emailSender.send).toHaveBeenCalled();
     expect(channel.ack).toHaveBeenCalledWith(message);
   });
@@ -428,11 +421,11 @@ describe('CallEventsConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const emailSender = createEmailSenderMock();
-    const processedEvents = createProcessedEventsMock();
+    const processedEvents = new InMemoryProcessedEventRepository();
     const consumer = new CallEventsConsumer(
       rabbitMq,
       emailSender as unknown as EmailSenderService,
-      processedEvents as unknown as ProcessedEventRepository,
+      processedEvents,
     );
     await consumer.onModuleInit();
 

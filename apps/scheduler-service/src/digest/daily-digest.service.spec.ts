@@ -1,18 +1,9 @@
 import { CallStatus } from '@call-reservation/shared-types';
 import { ConfigService } from '@nestjs/config';
 import { DateTime } from 'luxon';
-import {
-  ScheduledCallInput,
-  ScheduledCallRepository,
-} from '../state/scheduled-call.repository';
+import { InMemoryScheduledCallRepository } from '../state/testing/in-memory-scheduled-call-repository';
 import { DailyDigestService } from './daily-digest.service';
-import { PendingDigestRepository } from './pending-digest.repository';
-
-function createPendingDigestRepositoryMock(
-  queue: jest.Mock = jest.fn().mockResolvedValue(true),
-) {
-  return { queue } as unknown as PendingDigestRepository;
-}
+import { InMemoryPendingDigestRepository } from './testing/in-memory-pending-digest-repository';
 
 function createConfigServiceMock(): ConfigService {
   return {
@@ -29,74 +20,68 @@ function tomorrowIstanbul(): DateTime {
 
 describe('DailyDigestService', () => {
   it("queues digest.due with tomorrow's SCHEDULED calls, read from local state only", async () => {
-    const queue = jest.fn().mockResolvedValue(true);
-    const pendingDigestRepository = createPendingDigestRepositoryMock(queue);
+    const pendingDigestRepository = new InMemoryPendingDigestRepository();
+    const scheduledCallRepository = new InMemoryScheduledCallRepository();
     const tomorrow = tomorrowIstanbul();
-    const scheduledCall: ScheduledCallInput = {
+    scheduledCallRepository.seed({
       requestId: 'req-1',
       email: 'customer@example.com',
       scheduledAt: tomorrow.set({ hour: 10 }).toJSDate(),
       status: CallStatus.SCHEDULED,
-    };
-    const findScheduledBetween = jest.fn().mockResolvedValue([scheduledCall]);
-    const repository = {
-      findScheduledBetween,
-    } as unknown as ScheduledCallRepository;
+    });
     const service = new DailyDigestService(
-      repository,
+      scheduledCallRepository,
       pendingDigestRepository,
       createConfigServiceMock(),
     );
 
     await service.queueDailyDigest();
 
-    expect(findScheduledBetween).toHaveBeenCalledWith(
-      tomorrow.toJSDate(),
-      tomorrow.plus({ days: 1 }).toJSDate(),
-    );
-    expect(queue).toHaveBeenCalledWith({
-      date: tomorrow.toISODate(),
-      eventId: expect.any(String),
-      payload: {
-        adminEmail: 'admin@call-reservation.local',
+    expect(pendingDigestRepository.queueCalls).toEqual([
+      {
         date: tomorrow.toISODate(),
-        calls: [
-          {
-            requestId: 'req-1',
-            email: 'customer@example.com',
-            scheduledAt: scheduledCall.scheduledAt.toISOString(),
-          },
-        ],
+        eventId: expect.any(String),
+        payload: {
+          adminEmail: 'admin@call-reservation.local',
+          date: tomorrow.toISODate(),
+          calls: [
+            {
+              requestId: 'req-1',
+              email: 'customer@example.com',
+              scheduledAt: tomorrow.set({ hour: 10 }).toJSDate().toISOString(),
+            },
+          ],
+        },
       },
-    });
+    ]);
   });
 
   it('still queues a digest with an empty calls list when nothing is scheduled', async () => {
-    const queue = jest.fn().mockResolvedValue(true);
-    const pendingDigestRepository = createPendingDigestRepositoryMock(queue);
-    const repository = {
-      findScheduledBetween: jest.fn().mockResolvedValue([]),
-    } as unknown as ScheduledCallRepository;
+    const pendingDigestRepository = new InMemoryPendingDigestRepository();
+    const scheduledCallRepository = new InMemoryScheduledCallRepository();
     const service = new DailyDigestService(
-      repository,
+      scheduledCallRepository,
       pendingDigestRepository,
       createConfigServiceMock(),
     );
 
     await service.queueDailyDigest();
 
-    const [{ payload }] = queue.mock.calls[0];
+    const [{ payload }] = pendingDigestRepository.queueCalls;
     expect((payload as { calls: unknown[] }).calls).toEqual([]);
   });
 
   it('treats an already-queued digest as a no-op rather than a failure', async () => {
-    const queue = jest.fn().mockResolvedValue(false);
-    const pendingDigestRepository = createPendingDigestRepositoryMock(queue);
-    const repository = {
-      findScheduledBetween: jest.fn().mockResolvedValue([]),
-    } as unknown as ScheduledCallRepository;
+    const pendingDigestRepository = new InMemoryPendingDigestRepository();
+    const scheduledCallRepository = new InMemoryScheduledCallRepository();
+    const tomorrow = tomorrowIstanbul();
+    await pendingDigestRepository.queue({
+      date: tomorrow.toISODate() as string,
+      eventId: 'already-queued',
+      payload: {},
+    });
     const service = new DailyDigestService(
-      repository,
+      scheduledCallRepository,
       pendingDigestRepository,
       createConfigServiceMock(),
     );
@@ -105,13 +90,13 @@ describe('DailyDigestService', () => {
   });
 
   it('logs and swallows a genuine queue failure rather than crashing the scheduler', async () => {
-    const queue = jest.fn().mockRejectedValue(new Error('mongo down'));
-    const pendingDigestRepository = createPendingDigestRepositoryMock(queue);
-    const repository = {
-      findScheduledBetween: jest.fn().mockResolvedValue([]),
-    } as unknown as ScheduledCallRepository;
+    const pendingDigestRepository = new InMemoryPendingDigestRepository();
+    jest
+      .spyOn(pendingDigestRepository, 'queue')
+      .mockRejectedValueOnce(new Error('mongo down'));
+    const scheduledCallRepository = new InMemoryScheduledCallRepository();
     const service = new DailyDigestService(
-      repository,
+      scheduledCallRepository,
       pendingDigestRepository,
       createConfigServiceMock(),
     );

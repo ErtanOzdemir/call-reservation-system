@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon';
 import { InvalidAvailabilityDateError } from '../domain/errors/invalid-availability-date.error';
-import { AvailabilityRepository } from '../infrastructure/mongo/availability.repository';
+import { InMemoryAvailabilityRepository } from './testing/in-memory-availability-repository';
 import { GetAvailabilityUseCase } from './useCase/get-availability.use-case';
 import { GetAvailabilityUseCaseHandler } from './get-availability.use-case-handler';
 
@@ -16,10 +16,7 @@ function nextIstanbulWeekday(): DateTime {
 
 describe('GetAvailabilityUseCaseHandler', () => {
   it('returns all sixteen slots when nothing is booked that day', async () => {
-    const findOccupiedSlots = jest.fn().mockResolvedValue([]);
-    const repository = {
-      findOccupiedSlots,
-    } as unknown as AvailabilityRepository;
+    const repository = new InMemoryAvailabilityRepository();
     const handler = new GetAvailabilityUseCaseHandler(repository);
     const day = nextIstanbulWeekday();
 
@@ -37,10 +34,8 @@ describe('GetAvailabilityUseCaseHandler', () => {
   it('excludes slots already held by a REQUESTED/SCHEDULED call', async () => {
     const day = nextIstanbulWeekday();
     const occupiedSlot = day.set({ hour: 11, minute: 0 }).toJSDate();
-    const findOccupiedSlots = jest.fn().mockResolvedValue([occupiedSlot]);
-    const repository = {
-      findOccupiedSlots,
-    } as unknown as AvailabilityRepository;
+    const repository = new InMemoryAvailabilityRepository();
+    repository.occupiedSlots = [occupiedSlot];
     const handler = new GetAvailabilityUseCaseHandler(repository);
 
     const result = await handler.execute(
@@ -54,10 +49,7 @@ describe('GetAvailabilityUseCaseHandler', () => {
   });
 
   it('returns an empty list for a weekend without querying the repository', async () => {
-    const findOccupiedSlots = jest.fn();
-    const repository = {
-      findOccupiedSlots,
-    } as unknown as AvailabilityRepository;
+    const repository = new InMemoryAvailabilityRepository();
     const handler = new GetAvailabilityUseCaseHandler(repository);
 
     let saturday = DateTime.now().setZone('Europe/Istanbul').plus({ days: 1 });
@@ -70,13 +62,11 @@ describe('GetAvailabilityUseCaseHandler', () => {
     );
 
     expect(result.availableSlots).toEqual([]);
-    expect(findOccupiedSlots).not.toHaveBeenCalled();
+    expect(repository.calls).toEqual([]);
   });
 
   it('throws for an unparseable date', async () => {
-    const repository = {
-      findOccupiedSlots: jest.fn(),
-    } as unknown as AvailabilityRepository;
+    const repository = new InMemoryAvailabilityRepository();
     const handler = new GetAvailabilityUseCaseHandler(repository);
 
     await expect(

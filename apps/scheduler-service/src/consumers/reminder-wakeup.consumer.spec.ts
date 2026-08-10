@@ -9,10 +9,7 @@ import {
   REMINDER_DELAY_EXCHANGE,
   REMINDER_WAKEUP_ROUTING_KEY,
 } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
-import {
-  ScheduledCallInput,
-  ScheduledCallRepository,
-} from '../state/scheduled-call.repository';
+import { InMemoryScheduledCallRepository } from '../state/testing/in-memory-scheduled-call-repository';
 import { ReminderWakeupConsumer } from './reminder-wakeup.consumer';
 
 interface FakeMessage {
@@ -58,9 +55,7 @@ describe('ReminderWakeupConsumer', () => {
   it('binds the wakeup queue to the delayed exchange', async () => {
     const channel = createChannelMock();
     const rabbitMq = createRabbitMqMock(channel);
-    const repository = {
-      findByRequestId: jest.fn(),
-    } as unknown as ScheduledCallRepository;
+    const repository = new InMemoryScheduledCallRepository();
     const consumer = new ReminderWakeupConsumer(
       rabbitMq,
       repository,
@@ -83,15 +78,13 @@ describe('ReminderWakeupConsumer', () => {
   it('publishes reminder.due when the call is still scheduled', async () => {
     const channel = createChannelMock();
     const rabbitMq = createRabbitMqMock(channel);
-    const scheduledCall: ScheduledCallInput = {
+    const repository = new InMemoryScheduledCallRepository();
+    repository.seed({
       requestId: 'req-1',
       email: 'customer@example.com',
       scheduledAt: new Date('2026-08-10T10:00:00+03:00'),
       status: CallStatus.SCHEDULED,
-    };
-    const repository = {
-      findByRequestId: jest.fn().mockResolvedValue(scheduledCall),
-    } as unknown as ScheduledCallRepository;
+    });
     const consumer = new ReminderWakeupConsumer(
       rabbitMq,
       repository,
@@ -124,15 +117,13 @@ describe('ReminderWakeupConsumer', () => {
   it('reuses the wakeup eventId on redelivery, so a duplicate wakeup produces a recognizably duplicate reminder.due', async () => {
     const channel = createChannelMock();
     const rabbitMq = createRabbitMqMock(channel);
-    const scheduledCall: ScheduledCallInput = {
+    const repository = new InMemoryScheduledCallRepository();
+    repository.seed({
       requestId: 'req-1',
       email: 'customer@example.com',
       scheduledAt: new Date('2026-08-10T10:00:00+03:00'),
       status: CallStatus.SCHEDULED,
-    };
-    const repository = {
-      findByRequestId: jest.fn().mockResolvedValue(scheduledCall),
-    } as unknown as ScheduledCallRepository;
+    });
     const consumer = new ReminderWakeupConsumer(
       rabbitMq,
       repository,
@@ -159,15 +150,13 @@ describe('ReminderWakeupConsumer', () => {
   it('drops the wakeup without publishing if the call is no longer scheduled', async () => {
     const channel = createChannelMock();
     const rabbitMq = createRabbitMqMock(channel);
-    const scheduledCall: ScheduledCallInput = {
+    const repository = new InMemoryScheduledCallRepository();
+    repository.seed({
       requestId: 'req-1',
       email: 'customer@example.com',
       scheduledAt: new Date('2026-08-10T10:00:00+03:00'),
       status: CallStatus.REJECTED,
-    };
-    const repository = {
-      findByRequestId: jest.fn().mockResolvedValue(scheduledCall),
-    } as unknown as ScheduledCallRepository;
+    });
     const consumer = new ReminderWakeupConsumer(
       rabbitMq,
       repository,
@@ -188,9 +177,7 @@ describe('ReminderWakeupConsumer', () => {
   it('drops the wakeup without publishing if the call no longer exists', async () => {
     const channel = createChannelMock();
     const rabbitMq = createRabbitMqMock(channel);
-    const repository = {
-      findByRequestId: jest.fn().mockResolvedValue(null),
-    } as unknown as ScheduledCallRepository;
+    const repository = new InMemoryScheduledCallRepository();
     const consumer = new ReminderWakeupConsumer(
       rabbitMq,
       repository,
@@ -211,9 +198,10 @@ describe('ReminderWakeupConsumer', () => {
   it('nacks and requeues if the lookup fails', async () => {
     const channel = createChannelMock();
     const rabbitMq = createRabbitMqMock(channel);
-    const repository = {
-      findByRequestId: jest.fn().mockRejectedValue(new Error('mongo down')),
-    } as unknown as ScheduledCallRepository;
+    const repository = new InMemoryScheduledCallRepository();
+    jest
+      .spyOn(repository, 'findByRequestId')
+      .mockRejectedValueOnce(new Error('mongo down'));
     const consumer = new ReminderWakeupConsumer(
       rabbitMq,
       repository,
@@ -237,15 +225,13 @@ describe('ReminderWakeupConsumer', () => {
     jest
       .mocked(rabbitMq.publish)
       .mockRejectedValue(new Error('broker nacked it'));
-    const scheduledCall: ScheduledCallInput = {
+    const repository = new InMemoryScheduledCallRepository();
+    repository.seed({
       requestId: 'req-1',
       email: 'customer@example.com',
       scheduledAt: new Date('2026-08-10T10:00:00+03:00'),
       status: CallStatus.SCHEDULED,
-    };
-    const repository = {
-      findByRequestId: jest.fn().mockResolvedValue(scheduledCall),
-    } as unknown as ScheduledCallRepository;
+    });
     const consumer = new ReminderWakeupConsumer(
       rabbitMq,
       repository,
@@ -266,9 +252,8 @@ describe('ReminderWakeupConsumer', () => {
   it('ignores a null message from the broker', async () => {
     const channel = createChannelMock();
     const rabbitMq = createRabbitMqMock(channel);
-    const repository = {
-      findByRequestId: jest.fn(),
-    } as unknown as ScheduledCallRepository;
+    const repository = new InMemoryScheduledCallRepository();
+    const findByRequestId = jest.spyOn(repository, 'findByRequestId');
     const consumer = new ReminderWakeupConsumer(
       rabbitMq,
       repository,
@@ -279,6 +264,6 @@ describe('ReminderWakeupConsumer', () => {
     channel.deliver(null);
     await flushMicrotasks();
 
-    expect(repository.findByRequestId).not.toHaveBeenCalled();
+    expect(findByRequestId).not.toHaveBeenCalled();
   });
 });

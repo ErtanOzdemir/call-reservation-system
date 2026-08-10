@@ -4,7 +4,7 @@ import {
   RoutingKey,
 } from '@call-reservation/shared-types';
 import { RabbitMqConnectionService } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
-import { ScheduledCallRepository } from '../state/scheduled-call.repository';
+import { InMemoryScheduledCallRepository } from '../state/testing/in-memory-scheduled-call-repository';
 import { CallEventsConsumer } from './call-events.consumer';
 
 interface FakeMessage {
@@ -48,9 +48,7 @@ describe('CallEventsConsumer', () => {
   it('binds one queue to call.approved and call.canceled', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const repository = {
-      upsert: jest.fn(),
-    } as unknown as ScheduledCallRepository;
+    const repository = new InMemoryScheduledCallRepository();
     const consumer = new CallEventsConsumer(rabbitMq, repository);
 
     await consumer.onModuleInit();
@@ -73,8 +71,7 @@ describe('CallEventsConsumer', () => {
   it('marks the call SCHEDULED and queues a reminder wakeup in the same write on call.approved', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const upsert = jest.fn().mockResolvedValue(undefined);
-    const repository = { upsert } as unknown as ScheduledCallRepository;
+    const repository = new InMemoryScheduledCallRepository();
     const consumer = new CallEventsConsumer(rabbitMq, repository);
     await consumer.onModuleInit();
 
@@ -88,18 +85,20 @@ describe('CallEventsConsumer', () => {
     channel.deliver(message);
     await flushMicrotasks();
 
-    expect(upsert).toHaveBeenCalledWith(
+    expect(repository.upsertCalls).toEqual([
       {
-        requestId: 'req-1',
-        email: 'customer@example.com',
-        scheduledAt,
-        status: CallStatus.SCHEDULED,
+        record: {
+          requestId: 'req-1',
+          email: 'customer@example.com',
+          scheduledAt,
+          status: CallStatus.SCHEDULED,
+        },
+        options: {
+          scheduleReminderAt: new Date('2026-08-10T08:00:00+03:00'),
+          eventId: expect.any(String),
+        },
       },
-      {
-        scheduleReminderAt: new Date('2026-08-10T08:00:00+03:00'),
-        eventId: expect.any(String),
-      },
-    );
+    ]);
     expect(channel.ack).toHaveBeenCalledWith(message);
     // Nothing gets published directly anymore — that's
     // ReminderOutboxDispatcherService's job now, off the write above.
@@ -109,8 +108,7 @@ describe('CallEventsConsumer', () => {
   it('cancels a call and clears its pending reminder on call.canceled', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const cancel = jest.fn().mockResolvedValue(undefined);
-    const repository = { cancel } as unknown as ScheduledCallRepository;
+    const repository = new InMemoryScheduledCallRepository();
     const consumer = new CallEventsConsumer(rabbitMq, repository);
     await consumer.onModuleInit();
 
@@ -122,15 +120,14 @@ describe('CallEventsConsumer', () => {
     channel.deliver(message);
     await flushMicrotasks();
 
-    expect(cancel).toHaveBeenCalledWith('req-1');
+    expect(repository.cancelCalls).toEqual(['req-1']);
     expect(channel.ack).toHaveBeenCalledWith(message);
   });
 
   it('acks and drops a message with no matching handler', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const upsert = jest.fn();
-    const repository = { upsert } as unknown as ScheduledCallRepository;
+    const repository = new InMemoryScheduledCallRepository();
     const consumer = new CallEventsConsumer(rabbitMq, repository);
     await consumer.onModuleInit();
 
@@ -138,15 +135,15 @@ describe('CallEventsConsumer', () => {
     channel.deliver(message);
     await flushMicrotasks();
 
-    expect(upsert).not.toHaveBeenCalled();
+    expect(repository.upsertCalls).toEqual([]);
     expect(channel.ack).toHaveBeenCalledWith(message);
   });
 
   it('nacks and requeues on failure', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const upsert = jest.fn().mockRejectedValue(new Error('mongo down'));
-    const repository = { upsert } as unknown as ScheduledCallRepository;
+    const repository = new InMemoryScheduledCallRepository();
+    jest.spyOn(repository, 'upsert').mockRejectedValueOnce(new Error('mongo down'));
     const consumer = new CallEventsConsumer(rabbitMq, repository);
     await consumer.onModuleInit();
 
@@ -166,14 +163,13 @@ describe('CallEventsConsumer', () => {
   it('ignores a null message from the broker', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
-    const upsert = jest.fn();
-    const repository = { upsert } as unknown as ScheduledCallRepository;
+    const repository = new InMemoryScheduledCallRepository();
     const consumer = new CallEventsConsumer(rabbitMq, repository);
     await consumer.onModuleInit();
 
     channel.deliver(null);
     await flushMicrotasks();
 
-    expect(upsert).not.toHaveBeenCalled();
+    expect(repository.upsertCalls).toEqual([]);
   });
 });
