@@ -34,8 +34,8 @@ export class OutboxDispatcherService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    await this.dispatchAlreadyPending();
     this.watchForNewEvents();
+    await this.dispatchAlreadyPending();
   }
 
   async onModuleDestroy(): Promise<void> {

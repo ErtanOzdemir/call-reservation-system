@@ -48,8 +48,8 @@ export class ReminderOutboxDispatcherService
   ) {}
 
   async onModuleInit(): Promise<void> {
-    await this.dispatchAlreadyPending();
     this.watchForNewReminders();
+    await this.dispatchAlreadyPending();
   }
 
   async onModuleDestroy(): Promise<void> {

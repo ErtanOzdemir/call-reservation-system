@@ -43,8 +43,8 @@ export class DigestOutboxDispatcherService
   ) {}
 
   async onModuleInit(): Promise<void> {
-    await this.dispatchAlreadyPending();
     this.watchForNewDigests();
+    await this.dispatchAlreadyPending();
   }
 
   async onModuleDestroy(): Promise<void> {
