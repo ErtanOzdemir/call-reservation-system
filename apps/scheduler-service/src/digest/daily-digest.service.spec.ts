@@ -1,14 +1,14 @@
 import { CallStatus } from '@call-reservation/shared-types';
-import { ConfigService } from '@nestjs/config';
 import { DateTime } from 'luxon';
+import { createMockConfigService } from '../shared-kernel/testing/mock-config.service';
 import { InMemoryScheduledCallRepository } from '../state/testing/in-memory-scheduled-call-repository';
 import { DailyDigestService } from './daily-digest.service';
 import { InMemoryPendingDigestRepository } from './testing/in-memory-pending-digest-repository';
 
-function createConfigServiceMock(): ConfigService {
-  return {
-    getOrThrow: jest.fn(() => 'admin@call-reservation.local'),
-  } as unknown as ConfigService;
+function createConfigServiceMock() {
+  return createMockConfigService({
+    'reminder.adminEmail': 'admin@call-reservation.local',
+  });
 }
 
 function tomorrowIstanbul(): DateTime {

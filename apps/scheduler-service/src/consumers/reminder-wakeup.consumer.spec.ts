@@ -3,12 +3,12 @@ import {
   CallStatus,
   RoutingKey,
 } from '@call-reservation/shared-types';
-import { ConfigService } from '@nestjs/config';
 import {
   RabbitMqConnectionService,
   REMINDER_DELAY_EXCHANGE,
   REMINDER_WAKEUP_ROUTING_KEY,
 } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
+import { createMockConfigService } from '../shared-kernel/testing/mock-config.service';
 import { InMemoryScheduledCallRepository } from '../state/testing/in-memory-scheduled-call-repository';
 import { ReminderWakeupConsumer } from './reminder-wakeup.consumer';
 
@@ -45,10 +45,10 @@ function flushMicrotasks(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
-function createConfigServiceMock(): ConfigService {
-  return {
-    getOrThrow: jest.fn(() => 'admin@call-reservation.local'),
-  } as unknown as ConfigService;
+function createConfigServiceMock() {
+  return createMockConfigService({
+    'reminder.adminEmail': 'admin@call-reservation.local',
+  });
 }
 
 describe('ReminderWakeupConsumer', () => {

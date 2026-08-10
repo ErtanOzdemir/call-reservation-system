@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Transporter } from 'nodemailer';
+import { createMockConfigService } from '../testing/mock-config.service';
 import {
   EmailSenderService,
   maskEmailAddress,
@@ -17,9 +17,9 @@ describe('EmailSenderService', () => {
   it('sends a plain-text email through the configured SMTP transport', async () => {
     const sendMail = jest.fn().mockResolvedValue({ messageId: 'message-1' });
     const transporter = { sendMail } as unknown as Transporter;
-    const configService = {
-      getOrThrow: jest.fn().mockReturnValue('no-reply@example.com'),
-    } as unknown as ConfigService;
+    const configService = createMockConfigService({
+      'smtp.from': 'no-reply@example.com',
+    });
     const service = new EmailSenderService(transporter, configService);
 
     await service.send(email);
@@ -37,9 +37,9 @@ describe('EmailSenderService', () => {
     const transporter = {
       sendMail: jest.fn().mockResolvedValue({ messageId: 'message-1' }),
     } as unknown as Transporter;
-    const configService = {
-      getOrThrow: jest.fn().mockReturnValue('no-reply@example.com'),
-    } as unknown as ConfigService;
+    const configService = createMockConfigService({
+      'smtp.from': 'no-reply@example.com',
+    });
     const service = new EmailSenderService(transporter, configService);
 
     await service.send(email);
@@ -61,9 +61,9 @@ describe('EmailSenderService', () => {
           new Error('Delivery failed for customer@example.com'),
         ),
     } as unknown as Transporter;
-    const configService = {
-      getOrThrow: jest.fn().mockReturnValue('no-reply@example.com'),
-    } as unknown as ConfigService;
+    const configService = createMockConfigService({
+      'smtp.from': 'no-reply@example.com',
+    });
     const service = new EmailSenderService(transporter, configService);
 
     await expect(service.send(email)).rejects.toThrow('Delivery failed');

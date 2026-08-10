@@ -1,5 +1,5 @@
 import { CALL_EVENTS_EXCHANGE } from '@call-reservation/shared-types';
-import { ConfigService } from '@nestjs/config';
+import { createMockConfigService } from '../testing/mock-config.service';
 import * as amqplib from 'amqplib';
 import { RabbitMqConnectionService } from './rabbitmq-connection.service';
 
@@ -14,11 +14,9 @@ describe('RabbitMqConnectionService', () => {
     createChannel: jest.fn(async () => channel),
     close: jest.fn(),
   };
-  const configService = {
-    getOrThrow: jest.fn((key: string) =>
-      key === 'rabbitmq.url' ? 'amqp://localhost' : undefined,
-    ),
-  } as unknown as ConfigService;
+  const configService = createMockConfigService({
+    'rabbitmq.url': 'amqp://localhost',
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();
