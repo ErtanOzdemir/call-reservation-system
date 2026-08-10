@@ -4,7 +4,7 @@ import {
   ReminderDueEvent,
   RoutingKey,
 } from '@call-reservation/shared-types';
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ConsumeMessage } from 'amqplib';
 import {
@@ -12,7 +12,10 @@ import {
   REMINDER_DELAY_EXCHANGE,
   REMINDER_WAKEUP_ROUTING_KEY,
 } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
-import { ScheduledCallRepository } from '../state/scheduled-call.repository';
+import {
+  SCHEDULED_CALL_REPOSITORY,
+  ScheduledCallRepository,
+} from '../state/scheduled-call.repository';
 
 const REMINDER_WAKEUP_QUEUE = 'scheduler.reminder-wakeup';
 
@@ -28,6 +31,7 @@ export class ReminderWakeupConsumer implements OnModuleInit {
 
   constructor(
     private readonly rabbitMq: RabbitMqConnectionService,
+    @Inject(SCHEDULED_CALL_REPOSITORY)
     private readonly scheduledCallRepository: ScheduledCallRepository,
     configService: ConfigService,
   ) {

@@ -6,9 +6,12 @@ import {
   CallRequestDocument,
   CallRequestRecord,
 } from '../../../call-request/infrastructure/mongo/call-request.schema';
+import { AvailabilityRepositoryPort } from '../../domain/ports/availability-repository.port';
 
 @Injectable()
-export class AvailabilityRepository {
+export class MongoAvailabilityRepositoryAdapter
+  implements AvailabilityRepositoryPort
+{
   constructor(
     @InjectModel(CallRequestRecord.name)
     private readonly callRequestModel: Model<CallRequestDocument>,

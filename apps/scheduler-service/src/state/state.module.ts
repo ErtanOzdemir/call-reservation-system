@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { RabbitMqModule } from '../shared-kernel/rabbitmq/rabbitmq.module';
+import { MongoScheduledCallRepository } from './mongo-scheduled-call-repository';
 import { ReminderOutboxDispatcherService } from './reminder-outbox-dispatcher.service';
-import { ScheduledCallRepository } from './scheduled-call.repository';
+import { SCHEDULED_CALL_REPOSITORY } from './scheduled-call.repository';
 import {
   ScheduledCallRecord,
   ScheduledCallSchema,
@@ -15,7 +16,14 @@ import {
       { name: ScheduledCallRecord.name, schema: ScheduledCallSchema },
     ]),
   ],
-  providers: [ScheduledCallRepository, ReminderOutboxDispatcherService],
-  exports: [ScheduledCallRepository],
+  providers: [
+    MongoScheduledCallRepository,
+    {
+      provide: SCHEDULED_CALL_REPOSITORY,
+      useExisting: MongoScheduledCallRepository,
+    },
+    ReminderOutboxDispatcherService,
+  ],
+  exports: [SCHEDULED_CALL_REPOSITORY],
 })
 export class StateModule {}

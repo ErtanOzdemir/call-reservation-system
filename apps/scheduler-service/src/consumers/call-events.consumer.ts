@@ -5,11 +5,14 @@ import {
   CallStatus,
   RoutingKey,
 } from '@call-reservation/shared-types';
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConsumeMessage } from 'amqplib';
 import { randomUUID } from 'node:crypto';
 import { RabbitMqConnectionService } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
-import { ScheduledCallRepository } from '../state/scheduled-call.repository';
+import {
+  SCHEDULED_CALL_REPOSITORY,
+  ScheduledCallRepository,
+} from '../state/scheduled-call.repository';
 
 const SCHEDULER_QUEUE = 'scheduler.call-events';
 const BOUND_ROUTING_KEYS = [RoutingKey.CallApproved, RoutingKey.CallCanceled];
@@ -21,6 +24,7 @@ export class CallEventsConsumer implements OnModuleInit {
 
   constructor(
     private readonly rabbitMq: RabbitMqConnectionService,
+    @Inject(SCHEDULED_CALL_REPOSITORY)
     private readonly scheduledCallRepository: ScheduledCallRepository,
   ) {}
 

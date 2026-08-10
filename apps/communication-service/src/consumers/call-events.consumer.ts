@@ -8,9 +8,12 @@ import {
   ReminderDueEvent,
   RoutingKey,
 } from '@call-reservation/shared-types';
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConsumeMessage } from 'amqplib';
-import { ProcessedEventRepository } from '../idempotency/processed-event.repository';
+import {
+  PROCESSED_EVENT_REPOSITORY,
+  ProcessedEventRepository,
+} from '../idempotency/processed-event.repository';
 import { EmailSenderService } from '../shared-kernel/email/email-sender.service';
 import { EmailMessage } from '../shared-kernel/email/email-message';
 import { RabbitMqConnectionService } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
@@ -39,6 +42,7 @@ export class CallEventsConsumer implements OnModuleInit {
   constructor(
     private readonly rabbitMq: RabbitMqConnectionService,
     private readonly emailSender: EmailSenderService,
+    @Inject(PROCESSED_EVENT_REPOSITORY)
     private readonly processedEvents: ProcessedEventRepository,
   ) {}
 

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ProcessedEventRepository } from './processed-event.repository';
+import { MongoProcessedEventRepository } from './mongo-processed-event-repository';
+import { PROCESSED_EVENT_REPOSITORY } from './processed-event.repository';
 import {
   ProcessedEventRecord,
   ProcessedEventSchema,
@@ -12,7 +13,13 @@ import {
       { name: ProcessedEventRecord.name, schema: ProcessedEventSchema },
     ]),
   ],
-  providers: [ProcessedEventRepository],
-  exports: [ProcessedEventRepository],
+  providers: [
+    MongoProcessedEventRepository,
+    {
+      provide: PROCESSED_EVENT_REPOSITORY,
+      useExisting: MongoProcessedEventRepository,
+    },
+  ],
+  exports: [PROCESSED_EVENT_REPOSITORY],
 })
 export class IdempotencyModule {}

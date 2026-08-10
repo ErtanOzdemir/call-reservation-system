@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { DateTime } from 'luxon';
 import {
   ISTANBUL_TIME_ZONE,
@@ -6,12 +6,18 @@ import {
 } from '../../call-request/domain/policies/working-hours.policy';
 import { Availability } from '../domain/availability';
 import { InvalidAvailabilityDateError } from '../domain/errors/invalid-availability-date.error';
-import { AvailabilityRepository } from '../infrastructure/mongo/availability.repository';
+import {
+  AVAILABILITY_REPOSITORY,
+  AvailabilityRepositoryPort,
+} from '../domain/ports/availability-repository.port';
 import { GetAvailabilityUseCase } from './useCase/get-availability.use-case';
 
 @Injectable()
 export class GetAvailabilityUseCaseHandler {
-  constructor(private readonly availabilityRepository: AvailabilityRepository) {}
+  constructor(
+    @Inject(AVAILABILITY_REPOSITORY)
+    private readonly availabilityRepository: AvailabilityRepositoryPort,
+  ) {}
 
   async execute(useCase: GetAvailabilityUseCase): Promise<Availability> {
     const { date } = useCase;

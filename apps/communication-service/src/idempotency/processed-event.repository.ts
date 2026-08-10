@@ -1,36 +1,11 @@
-import { isMongoDuplicateKeyError } from '@call-reservation/shared-types';
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import {
-  ProcessedEventDocument,
-  ProcessedEventRecord,
-} from './processed-event.schema';
+export const PROCESSED_EVENT_REPOSITORY = Symbol('PROCESSED_EVENT_REPOSITORY');
 
-@Injectable()
-export class ProcessedEventRepository {
-  constructor(
-    @InjectModel(ProcessedEventRecord.name)
-    private readonly processedEventModel: Model<ProcessedEventDocument>,
-  ) {}
-
+export interface ProcessedEventRepository {
   /** Atomically claims eventId. Returns false if it was already claimed —
    * the caller should treat that as "already handled" and skip. */
-  async claim(eventId: string): Promise<boolean> {
-    try {
-      await this.processedEventModel.create({ eventId });
-      return true;
-    } catch (error) {
-      if (isMongoDuplicateKeyError(error)) {
-        return false;
-      }
-      throw error;
-    }
-  }
+  claim(eventId: string): Promise<boolean>;
 
   /** Releases a claim so a redelivery can retry — call this when the work
    * done under the claim failed, never after it succeeded. */
-  async release(eventId: string): Promise<void> {
-    await this.processedEventModel.deleteOne({ eventId }).exec();
-  }
+  release(eventId: string): Promise<void>;
 }

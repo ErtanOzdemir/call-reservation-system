@@ -5,8 +5,9 @@ import {
   CallRequestSchema,
 } from '../call-request/infrastructure/mongo/call-request.schema';
 import { GetAvailabilityUseCaseHandler } from './application/get-availability.use-case-handler';
+import { AVAILABILITY_REPOSITORY } from './domain/ports/availability-repository.port';
 import { AvailabilityController } from './infrastructure/http/availability.controller';
-import { AvailabilityRepository } from './infrastructure/mongo/availability.repository';
+import { MongoAvailabilityRepositoryAdapter } from './infrastructure/mongo/mongo-availability-repository.adapter';
 
 @Module({
   imports: [
@@ -15,6 +16,13 @@ import { AvailabilityRepository } from './infrastructure/mongo/availability.repo
     ]),
   ],
   controllers: [AvailabilityController],
-  providers: [GetAvailabilityUseCaseHandler, AvailabilityRepository],
+  providers: [
+    GetAvailabilityUseCaseHandler,
+    MongoAvailabilityRepositoryAdapter,
+    {
+      provide: AVAILABILITY_REPOSITORY,
+      useExisting: MongoAvailabilityRepositoryAdapter,
+    },
+  ],
 })
 export class AvailabilityModule {}

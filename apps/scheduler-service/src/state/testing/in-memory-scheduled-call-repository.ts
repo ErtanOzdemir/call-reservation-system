@@ -1,22 +1,16 @@
 import { CallStatus } from '@call-reservation/shared-types';
-import { Model } from 'mongoose';
-import { ScheduledCallDocument } from '../scheduled-call.schema';
 import {
   ScheduledCallInput,
   ScheduledCallRepository,
 } from '../scheduled-call.repository';
 
-export class InMemoryScheduledCallRepository extends ScheduledCallRepository {
+export class InMemoryScheduledCallRepository implements ScheduledCallRepository {
   private readonly records = new Map<string, ScheduledCallInput>();
   upsertCalls: Array<{
     record: ScheduledCallInput;
     options?: { scheduleReminderAt: Date; eventId: string };
   }> = [];
   cancelCalls: string[] = [];
-
-  constructor() {
-    super(null as unknown as Model<ScheduledCallDocument>);
-  }
 
   seed(record: ScheduledCallInput): void {
     this.records.set(record.requestId, record);

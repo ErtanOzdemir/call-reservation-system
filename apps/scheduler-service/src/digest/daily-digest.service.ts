@@ -1,11 +1,17 @@
 import { DigestDueEvent } from '@call-reservation/shared-types';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { DateTime } from 'luxon';
 import { randomUUID } from 'node:crypto';
-import { ScheduledCallRepository } from '../state/scheduled-call.repository';
-import { PendingDigestRepository } from './pending-digest.repository';
+import {
+  SCHEDULED_CALL_REPOSITORY,
+  ScheduledCallRepository,
+} from '../state/scheduled-call.repository';
+import {
+  PENDING_DIGEST_REPOSITORY,
+  PendingDigestRepository,
+} from './pending-digest.repository';
 
 const ISTANBUL_TIME_ZONE = 'Europe/Istanbul';
 
@@ -21,7 +27,9 @@ export class DailyDigestService {
   private readonly adminEmail: string;
 
   constructor(
+    @Inject(SCHEDULED_CALL_REPOSITORY)
     private readonly scheduledCallRepository: ScheduledCallRepository,
+    @Inject(PENDING_DIGEST_REPOSITORY)
     private readonly pendingDigestRepository: PendingDigestRepository,
     configService: ConfigService,
   ) {

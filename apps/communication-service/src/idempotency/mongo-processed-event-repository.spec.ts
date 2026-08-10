@@ -1,6 +1,6 @@
 import { Model } from 'mongoose';
+import { MongoProcessedEventRepository } from './mongo-processed-event-repository';
 import { ProcessedEventDocument } from './processed-event.schema';
-import { ProcessedEventRepository } from './processed-event.repository';
 
 function createModelMock() {
   return {
@@ -9,11 +9,11 @@ function createModelMock() {
   };
 }
 
-describe('ProcessedEventRepository', () => {
+describe('MongoProcessedEventRepository', () => {
   it('claims a new eventId and returns true', async () => {
     const model = createModelMock();
     model.create.mockResolvedValue(undefined);
-    const repository = new ProcessedEventRepository(
+    const repository = new MongoProcessedEventRepository(
       model as never as Model<ProcessedEventDocument>,
     );
 
@@ -26,7 +26,7 @@ describe('ProcessedEventRepository', () => {
   it('returns false for an eventId that was already claimed', async () => {
     const model = createModelMock();
     model.create.mockRejectedValue({ code: 11000 });
-    const repository = new ProcessedEventRepository(
+    const repository = new MongoProcessedEventRepository(
       model as never as Model<ProcessedEventDocument>,
     );
 
@@ -38,7 +38,7 @@ describe('ProcessedEventRepository', () => {
   it('rethrows a non-duplicate-key error', async () => {
     const model = createModelMock();
     model.create.mockRejectedValue(new Error('mongo down'));
-    const repository = new ProcessedEventRepository(
+    const repository = new MongoProcessedEventRepository(
       model as never as Model<ProcessedEventDocument>,
     );
 
@@ -47,7 +47,7 @@ describe('ProcessedEventRepository', () => {
 
   it('deletes the claim on release', async () => {
     const model = createModelMock();
-    const repository = new ProcessedEventRepository(
+    const repository = new MongoProcessedEventRepository(
       model as never as Model<ProcessedEventDocument>,
     );
 

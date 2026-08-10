@@ -4,7 +4,8 @@ import { RabbitMqModule } from '../shared-kernel/rabbitmq/rabbitmq.module';
 import { StateModule } from '../state/state.module';
 import { DailyDigestService } from './daily-digest.service';
 import { DigestOutboxDispatcherService } from './digest-outbox-dispatcher.service';
-import { PendingDigestRepository } from './pending-digest.repository';
+import { MongoPendingDigestRepository } from './mongo-pending-digest-repository';
+import { PENDING_DIGEST_REPOSITORY } from './pending-digest.repository';
 import {
   PendingDigestRecord,
   PendingDigestSchema,
@@ -21,7 +22,11 @@ import {
   providers: [
     DailyDigestService,
     DigestOutboxDispatcherService,
-    PendingDigestRepository,
+    MongoPendingDigestRepository,
+    {
+      provide: PENDING_DIGEST_REPOSITORY,
+      useExisting: MongoPendingDigestRepository,
+    },
   ],
 })
 export class DigestModule {}

@@ -1,15 +1,9 @@
-import { Model } from 'mongoose';
-import { ProcessedEventDocument } from '../processed-event.schema';
 import { ProcessedEventRepository } from '../processed-event.repository';
 
-export class InMemoryProcessedEventRepository extends ProcessedEventRepository {
+export class InMemoryProcessedEventRepository implements ProcessedEventRepository {
   private readonly claimed = new Set<string>();
   claimCalls: string[] = [];
   releaseCalls: string[] = [];
-
-  constructor() {
-    super(null as unknown as Model<ProcessedEventDocument>);
-  }
 
   async claim(eventId: string): Promise<boolean> {
     this.claimCalls.push(eventId);
