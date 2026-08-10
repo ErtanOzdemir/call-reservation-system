@@ -205,6 +205,35 @@ rendered message. See `apps/communication-service/src/templates/`.
 
 ## Assumptions & architectural decisions
 
+- **Outbox pattern instead of publishing directly from application code.**
+  Writing to MongoDB and then separately calling `rabbitMq.publish(...)` has a
+  dual-write problem: if the process crashes, or RabbitMQ is briefly
+  unreachable, between the two calls, the state change and the event it
+  should have triggered can permanently diverge — a call gets approved in the
+  database but `call.approved` never reaches Scheduler or Communication
+  Service, with nothing left to detect the gap. This system avoids that by
+  never publishing directly from application code: every event is first
+  written into MongoDB in the same atomic write as the state change it
+  describes (see "No polling" above for the mechanics — `pendingEvents`,
+  `pendingReminder`, `pending-digests`), and a separate dispatcher process
+  tails that collection's change stream, publishes to RabbitMQ, and only then
+  clears the record. A crash at any point before that last step is recovered
+  by the dispatcher's startup catch-up sweep, so at-least-once delivery is
+  guaranteed without needing a two-phase commit across MongoDB and RabbitMQ.
+
+  **Bonus / possible improvement — a Dead Letter Queue was intentionally left
+  out.** Right now a message a consumer keeps failing to process is nacked
+  and requeued indefinitely (`channel.nack(message, false, true)`), so a
+  persistently broken message — a malformed payload, a bug in one handler —
+  would loop forever instead of being set aside. A Dead Letter
+  Exchange/Queue, routing a message to a separate queue after N failed
+  delivery attempts, is the standard fix for this: it gives an operator
+  somewhere to see and replay stuck messages instead of them looping
+  silently. It was left out here to keep the messaging topology (exchanges,
+  queues, bindings) as small as this assignment's scope needed — adding it
+  would mean per-queue retry-count tracking and a second exchange per queue,
+  which felt like unnecessary complexity for a project this size.
+
 - **30-minute fixed slots.** Users select a start time from a list of
   pre-computed 30-minute slots (10:00, 10:30, … up to 17:30) instead of
   entering an arbitrary time. This is what `GET /availability` returns, and
