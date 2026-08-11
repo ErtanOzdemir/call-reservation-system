@@ -49,7 +49,11 @@ describe('CallEventsConsumer', () => {
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const repository = new InMemoryScheduledCallRepository();
     const processedEvents = new InMemoryProcessedEventRepository();
-    const consumer = new CallEventsConsumer(rabbitMq, repository, processedEvents);
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      repository,
+      processedEvents,
+    );
 
     await consumer.onModuleInit();
 
@@ -73,7 +77,11 @@ describe('CallEventsConsumer', () => {
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const repository = new InMemoryScheduledCallRepository();
     const processedEvents = new InMemoryProcessedEventRepository();
-    const consumer = new CallEventsConsumer(rabbitMq, repository, processedEvents);
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      repository,
+      processedEvents,
+    );
     await consumer.onModuleInit();
 
     const scheduledAt = new Date('2026-08-10T10:00:00+03:00');
@@ -114,7 +122,11 @@ describe('CallEventsConsumer', () => {
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const repository = new InMemoryScheduledCallRepository();
     const processedEvents = new InMemoryProcessedEventRepository();
-    const consumer = new CallEventsConsumer(rabbitMq, repository, processedEvents);
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      repository,
+      processedEvents,
+    );
     await consumer.onModuleInit();
 
     const message = messageFor(RoutingKey.CallCanceled, {
@@ -135,7 +147,11 @@ describe('CallEventsConsumer', () => {
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const repository = new InMemoryScheduledCallRepository();
     const processedEvents = new InMemoryProcessedEventRepository();
-    const consumer = new CallEventsConsumer(rabbitMq, repository, processedEvents);
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      repository,
+      processedEvents,
+    );
     await consumer.onModuleInit();
 
     const message = messageFor('unknown.routing.key', { requestId: 'req-1' });
@@ -150,9 +166,15 @@ describe('CallEventsConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const repository = new InMemoryScheduledCallRepository();
-    jest.spyOn(repository, 'upsert').mockRejectedValueOnce(new Error('mongo down'));
+    jest
+      .spyOn(repository, 'upsert')
+      .mockRejectedValueOnce(new Error('mongo down'));
     const processedEvents = new InMemoryProcessedEventRepository();
-    const consumer = new CallEventsConsumer(rabbitMq, repository, processedEvents);
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      repository,
+      processedEvents,
+    );
     await consumer.onModuleInit();
 
     const message = messageFor(RoutingKey.CallApproved, {
@@ -175,7 +197,11 @@ describe('CallEventsConsumer', () => {
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const repository = new InMemoryScheduledCallRepository();
     const processedEvents = new InMemoryProcessedEventRepository();
-    const consumer = new CallEventsConsumer(rabbitMq, repository, processedEvents);
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      repository,
+      processedEvents,
+    );
     await consumer.onModuleInit();
 
     channel.deliver(null);
@@ -190,7 +216,11 @@ describe('CallEventsConsumer', () => {
     const repository = new InMemoryScheduledCallRepository();
     const processedEvents = new InMemoryProcessedEventRepository();
     await processedEvents.claim('event-1');
-    const consumer = new CallEventsConsumer(rabbitMq, repository, processedEvents);
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      repository,
+      processedEvents,
+    );
     await consumer.onModuleInit();
 
     const message = messageFor(RoutingKey.CallApproved, {
@@ -213,9 +243,15 @@ describe('CallEventsConsumer', () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const repository = new InMemoryScheduledCallRepository();
-    jest.spyOn(repository, 'upsert').mockRejectedValueOnce(new Error('mongo down'));
+    jest
+      .spyOn(repository, 'upsert')
+      .mockRejectedValueOnce(new Error('mongo down'));
     const processedEvents = new InMemoryProcessedEventRepository();
-    const consumer = new CallEventsConsumer(rabbitMq, repository, processedEvents);
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      repository,
+      processedEvents,
+    );
     await consumer.onModuleInit();
 
     const message = messageFor(RoutingKey.CallApproved, {
@@ -235,12 +271,64 @@ describe('CallEventsConsumer', () => {
     expect(channel.ack).not.toHaveBeenCalled();
   });
 
+  it('does not resurrect a canceled call when a stale call.approved retry arrives afterwards', async () => {
+    const channel = createChannelMock();
+    const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
+    const repository = new InMemoryScheduledCallRepository();
+    repository.seed({
+      requestId: 'req-1',
+      email: 'customer@example.com',
+      scheduledAt: new Date('2026-08-10T10:00:00+03:00'),
+      status: CallStatus.SCHEDULED,
+      adminEmail: 'admin@example.com',
+    });
+    const processedEvents = new InMemoryProcessedEventRepository();
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      repository,
+      processedEvents,
+    );
+    await consumer.onModuleInit();
+
+    // Admin cancels the already-scheduled call.
+    const canceledMessage = messageFor(RoutingKey.CallCanceled, {
+      eventId: 'cancel-1',
+      requestId: 'req-1',
+      email: 'customer@example.com',
+      canceledAt: '2026-08-08T09:30:00+03:00',
+    });
+    channel.deliver(canceledMessage);
+    await flushMicrotasks();
+    expect(channel.ack).toHaveBeenCalledWith(canceledMessage);
+
+    // A stale call.approved for the same request (e.g. its own earlier
+    // attempt failed, releasing the claim, and this is the retry) is
+    // delivered afterwards — it must not un-cancel the request.
+    const approvedMessage = messageFor(RoutingKey.CallApproved, {
+      eventId: 'approve-1',
+      requestId: 'req-1',
+      email: 'customer@example.com',
+      scheduledAt: '2026-08-10T10:00:00+03:00',
+      approvedAt: '2026-08-08T09:00:00+03:00',
+      adminEmail: 'admin@example.com',
+    });
+    channel.deliver(approvedMessage);
+    await flushMicrotasks();
+
+    const stored = await repository.findByRequestId('req-1');
+    expect(stored?.status).toBe(CallStatus.CANCELED);
+  });
+
   it('does not touch the idempotency store for a payload with no eventId', async () => {
     const channel = createChannelMock();
     const rabbitMq = { channel } as unknown as RabbitMqConnectionService;
     const repository = new InMemoryScheduledCallRepository();
     const processedEvents = new InMemoryProcessedEventRepository();
-    const consumer = new CallEventsConsumer(rabbitMq, repository, processedEvents);
+    const consumer = new CallEventsConsumer(
+      rabbitMq,
+      repository,
+      processedEvents,
+    );
     await consumer.onModuleInit();
 
     const message = messageFor(RoutingKey.CallApproved, {

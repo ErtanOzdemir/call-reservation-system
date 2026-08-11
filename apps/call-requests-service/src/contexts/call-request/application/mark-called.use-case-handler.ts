@@ -1,9 +1,11 @@
-import { CallStatus } from '@call-reservation/shared-types';
+import {
+  CallLifecyclePolicy,
+  CallStatus,
+  InvalidStateTransitionError,
+} from '@call-reservation/shared-types';
 import { Inject, Injectable } from '@nestjs/common';
 import { CallRequest } from '../domain/entities/call-request.entity';
 import { CallRequestNotFoundError } from '../domain/errors/call-request-not-found.error';
-import { InvalidStateTransitionError } from '../domain/errors/invalid-state-transition.error';
-import { CallLifecyclePolicy } from '../domain/policies/call-lifecycle.policy';
 import {
   CALL_REQUEST_REPOSITORY,
   CallRequestRepositoryPort,
@@ -38,7 +40,10 @@ export class MarkCalledUseCaseHandler {
     );
 
     if (!savedCallRequest) {
-      throw new InvalidStateTransitionError(callRequest.status, CallStatus.CALLED);
+      throw new InvalidStateTransitionError(
+        callRequest.status,
+        CallStatus.CALLED,
+      );
     }
 
     return savedCallRequest;

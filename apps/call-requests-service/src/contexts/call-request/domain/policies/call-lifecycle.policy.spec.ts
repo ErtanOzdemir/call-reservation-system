@@ -1,6 +1,8 @@
-import { CallStatus } from '@call-reservation/shared-types';
-import { InvalidStateTransitionError } from '../errors/invalid-state-transition.error';
-import { CallLifecyclePolicy } from './call-lifecycle.policy';
+import {
+  CallLifecyclePolicy,
+  CallStatus,
+  InvalidStateTransitionError,
+} from '@call-reservation/shared-types';
 
 describe('CallLifecyclePolicy', () => {
   it('allows REQUESTED to move to SCHEDULED', () => {

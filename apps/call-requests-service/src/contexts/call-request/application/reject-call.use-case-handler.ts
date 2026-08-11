@@ -1,10 +1,14 @@
-import { CallRejectedEvent, CallStatus, RoutingKey } from '@call-reservation/shared-types';
+import {
+  CallLifecyclePolicy,
+  CallRejectedEvent,
+  CallStatus,
+  InvalidStateTransitionError,
+  RoutingKey,
+} from '@call-reservation/shared-types';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { CallRequest } from '../domain/entities/call-request.entity';
 import { CallRequestNotFoundError } from '../domain/errors/call-request-not-found.error';
-import { InvalidStateTransitionError } from '../domain/errors/invalid-state-transition.error';
-import { CallLifecyclePolicy } from '../domain/policies/call-lifecycle.policy';
 import {
   CALL_REQUEST_REPOSITORY,
   CallRequestRepositoryPort,
@@ -42,13 +46,20 @@ export class RejectCallUseCaseHandler {
     const savedCallRequest = await this.callRequestRepository.transition(
       rejectedCallRequest,
       callRequest.status,
-      { eventId: randomUUID(), routingKey: RoutingKey.CallRejected, payload: { ...event } },
+      {
+        eventId: randomUUID(),
+        routingKey: RoutingKey.CallRejected,
+        payload: { ...event },
+      },
     );
 
     // Someone else (a concurrent approve/reject call) already moved this
     // request past REQUESTED between the read above and this write.
     if (!savedCallRequest) {
-      throw new InvalidStateTransitionError(callRequest.status, CallStatus.REJECTED);
+      throw new InvalidStateTransitionError(
+        callRequest.status,
+        CallStatus.REJECTED,
+      );
     }
 
     return savedCallRequest;

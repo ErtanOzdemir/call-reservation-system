@@ -1,10 +1,14 @@
-import { CallApprovedEvent, CallStatus, RoutingKey } from '@call-reservation/shared-types';
+import {
+  CallApprovedEvent,
+  CallLifecyclePolicy,
+  CallStatus,
+  InvalidStateTransitionError,
+  RoutingKey,
+} from '@call-reservation/shared-types';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { CallRequest } from '../domain/entities/call-request.entity';
 import { CallRequestNotFoundError } from '../domain/errors/call-request-not-found.error';
-import { InvalidStateTransitionError } from '../domain/errors/invalid-state-transition.error';
-import { CallLifecyclePolicy } from '../domain/policies/call-lifecycle.policy';
 import {
   CALL_REQUEST_REPOSITORY,
   CallRequestRepositoryPort,
@@ -44,13 +48,20 @@ export class ApproveCallUseCaseHandler {
     const savedCallRequest = await this.callRequestRepository.transition(
       approvedCallRequest,
       callRequest.status,
-      { eventId: randomUUID(), routingKey: RoutingKey.CallApproved, payload: { ...event } },
+      {
+        eventId: randomUUID(),
+        routingKey: RoutingKey.CallApproved,
+        payload: { ...event },
+      },
     );
 
     // Someone else (a concurrent approve/reject call) already moved this
     // request past REQUESTED between the read above and this write.
     if (!savedCallRequest) {
-      throw new InvalidStateTransitionError(callRequest.status, CallStatus.SCHEDULED);
+      throw new InvalidStateTransitionError(
+        callRequest.status,
+        CallStatus.SCHEDULED,
+      );
     }
 
     return savedCallRequest;

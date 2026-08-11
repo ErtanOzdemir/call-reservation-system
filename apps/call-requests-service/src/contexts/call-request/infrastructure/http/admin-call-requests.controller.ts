@@ -1,4 +1,8 @@
-import { CallRequestResponse, Role } from '@call-reservation/shared-types';
+import {
+  CallRequestResponse,
+  InvalidStateTransitionError,
+  Role,
+} from '@call-reservation/shared-types';
 import {
   Body,
   ConflictException,
@@ -28,7 +32,6 @@ import { SetCallRequestNotesUseCaseHandler } from '../../application/set-call-re
 import { toCallRequestResponse } from '../../application/to-call-request-response';
 import { CallRequest } from '../../domain/entities/call-request.entity';
 import { CallRequestNotFoundError } from '../../domain/errors/call-request-not-found.error';
-import { InvalidStateTransitionError } from '../../domain/errors/invalid-state-transition.error';
 import { UpdateCallRequestNotesDto } from './dto/update-call-request-notes.dto';
 
 @Controller('admin/call-requests')

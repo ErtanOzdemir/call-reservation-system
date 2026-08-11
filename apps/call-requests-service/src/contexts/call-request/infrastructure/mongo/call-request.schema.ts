@@ -1,7 +1,9 @@
-import { CallStatus } from '@call-reservation/shared-types';
+import {
+  CallLifecyclePolicy,
+  CallStatus,
+} from '@call-reservation/shared-types';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { CallLifecyclePolicy } from '../../domain/policies/call-lifecycle.policy';
 
 @Schema()
 export class OutboxEventRecord {
@@ -59,7 +61,6 @@ export class CallRequestRecord {
 export type CallRequestDocument = HydratedDocument<CallRequestRecord>;
 export const CallRequestSchema =
   SchemaFactory.createForClass(CallRequestRecord);
-
 
 CallRequestSchema.index(
   { scheduledAt: 1 },

@@ -2,6 +2,7 @@ import {
   CALL_EVENTS_EXCHANGE,
   CallApprovedEvent,
   CallCanceledEvent,
+  CallLifecyclePolicy,
   CallStatus,
   RoutingKey,
 } from '@call-reservation/shared-types';
@@ -74,7 +75,7 @@ export class CallEventsConsumer implements OnModuleInit {
 
   private async handleMessage(message: ConsumeMessage): Promise<void> {
     const payload: unknown = JSON.parse(message.content.toString('utf8'));
-  
+
     const { eventId } = payload as { eventId?: string };
 
     if (eventId && !(await this.processedEvents.claim(eventId))) {
@@ -111,7 +112,37 @@ export class CallEventsConsumer implements OnModuleInit {
     this.rabbitMq.channel.ack(message);
   }
 
+  /**
+   * Guards against a stale event retry (its own earlier attempt's claim was
+   * released after that attempt failed) re-applying a transition the
+   * request has already moved past, e.g. a late call.approved resurrecting
+   * an already-CANCELED request.
+   */
+  private async isStaleTransition(
+    requestId: string,
+    to: CallStatus,
+  ): Promise<boolean> {
+    const existing =
+      await this.scheduledCallRepository.findByRequestId(requestId);
+
+    if (
+      existing &&
+      !CallLifecyclePolicy.isTransitionAllowed(existing.status, to)
+    ) {
+      this.logger.log(
+        `Skipping stale event for ${requestId}: already ${existing.status}.`,
+      );
+      return true;
+    }
+
+    return false;
+  }
+
   private async handleCallApproved(event: CallApprovedEvent): Promise<void> {
+    if (await this.isStaleTransition(event.requestId, CallStatus.SCHEDULED)) {
+      return;
+    }
+
     const scheduledAt = new Date(event.scheduledAt);
     const targetFireAt = new Date(
       scheduledAt.getTime() - REMINDER_LEAD_TIME_MS,
@@ -132,6 +163,10 @@ export class CallEventsConsumer implements OnModuleInit {
   }
 
   private async handleCallCanceled(event: CallCanceledEvent): Promise<void> {
+    if (await this.isStaleTransition(event.requestId, CallStatus.CANCELED)) {
+      return;
+    }
+
     await this.scheduledCallRepository.cancel(event.requestId);
 
     this.logger.log(`Marked call request ${event.requestId} as canceled.`);

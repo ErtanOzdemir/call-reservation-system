@@ -4,7 +4,9 @@ import {
   ScheduledCallRepository,
 } from '../scheduled-call.repository';
 
-export class InMemoryScheduledCallRepository implements ScheduledCallRepository {
+export class InMemoryScheduledCallRepository
+  implements ScheduledCallRepository
+{
   private readonly records = new Map<string, ScheduledCallInput>();
   private lastAdminEmail: string | null = null;
   upsertCalls: Array<{

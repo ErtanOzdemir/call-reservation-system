@@ -1,10 +1,13 @@
-import { CallStatus, isMongoDuplicateKeyError } from '@call-reservation/shared-types';
+import {
+  CallLifecyclePolicy,
+  CallStatus,
+  isMongoDuplicateKeyError,
+} from '@call-reservation/shared-types';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CallRequest } from '../../domain/entities/call-request.entity';
 import { SlotUnavailableError } from '../../domain/errors/slot-unavailable.error';
-import { CallLifecyclePolicy } from '../../domain/policies/call-lifecycle.policy';
 import { OutboxEvent } from '../../domain/outbox-event';
 import { CallRequestRepositoryPort } from '../../domain/ports/call-request-repository.port';
 import { CallRequestDocument, CallRequestRecord } from './call-request.schema';
@@ -125,7 +128,9 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
     return records.map((record) => this.toDomain(record));
   }
 
-  async findByRequestedByUserId(requestedByUserId: string): Promise<CallRequest[]> {
+  async findByRequestedByUserId(
+    requestedByUserId: string,
+  ): Promise<CallRequest[]> {
     const records = await this.callRequestModel
       .find({ requestedByUserId })
       .sort({ scheduledAt: 1 })
@@ -136,7 +141,11 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
 
   async setNotes(id: string, notes: string): Promise<CallRequest | null> {
     const record = await this.callRequestModel
-      .findOneAndUpdate({ id }, { $set: { notes } }, { upsert: false, new: true })
+      .findOneAndUpdate(
+        { id },
+        { $set: { notes } },
+        { upsert: false, new: true },
+      )
       .exec();
 
     return record ? this.toDomain(record) : null;

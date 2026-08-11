@@ -1,5 +1,5 @@
-import { CallStatus } from '@call-reservation/shared-types';
-import { InvalidStateTransitionError } from '../errors/invalid-state-transition.error';
+import { CallStatus } from '../enums/call-request/call-status';
+import { InvalidStateTransitionError } from './invalid-state-transition.error';
 
 const ALLOWED_TRANSITIONS: Record<CallStatus, CallStatus[]> = {
   [CallStatus.REQUESTED]: [CallStatus.SCHEDULED, CallStatus.REJECTED],
@@ -21,8 +21,12 @@ export class CallLifecyclePolicy {
     CallStatus.SCHEDULED,
   ];
 
+  static isTransitionAllowed(from: CallStatus, to: CallStatus): boolean {
+    return ALLOWED_TRANSITIONS[from].includes(to);
+  }
+
   static assertTransitionAllowed(from: CallStatus, to: CallStatus): void {
-    if (!ALLOWED_TRANSITIONS[from].includes(to)) {
+    if (!this.isTransitionAllowed(from, to)) {
       throw new InvalidStateTransitionError(from, to);
     }
   }

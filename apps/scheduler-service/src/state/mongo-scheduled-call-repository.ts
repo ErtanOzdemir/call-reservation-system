@@ -78,9 +78,7 @@ export class MongoScheduledCallRepository implements ScheduledCallRepository {
     }));
   }
 
-  async findByRequestId(
-    requestId: string,
-  ): Promise<ScheduledCallInput | null> {
+  async findByRequestId(requestId: string): Promise<ScheduledCallInput | null> {
     const record = await this.scheduledCallModel.findOne({ requestId }).exec();
 
     if (!record) {

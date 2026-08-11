@@ -1,7 +1,7 @@
+import { CallLifecyclePolicy } from '@call-reservation/shared-types';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { CallLifecyclePolicy } from '../../../call-request/domain/policies/call-lifecycle.policy';
 import {
   CallRequestDocument,
   CallRequestRecord,
