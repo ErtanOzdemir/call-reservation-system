@@ -34,7 +34,6 @@ const BOUND_ROUTING_KEYS = [
   RoutingKey.DigestDue,
 ];
 
-/** One queue, one consumer — see scheduler-service's CallEventsConsumer for why. */
 @Injectable()
 export class CallEventsConsumer implements OnModuleInit {
   private readonly logger = new Logger(CallEventsConsumer.name);
@@ -83,8 +82,7 @@ export class CallEventsConsumer implements OnModuleInit {
 
   private async handleMessage(message: ConsumeMessage): Promise<void> {
     const payload: unknown = JSON.parse(message.content.toString('utf8'));
-    // Not part of any event's domain type — merged onto the wire at
-    // publish time by the sending outbox, so it's read off the raw payload.
+
     const { eventId } = payload as { eventId?: string };
 
     if (eventId && !(await this.processedEvents.claim(eventId))) {

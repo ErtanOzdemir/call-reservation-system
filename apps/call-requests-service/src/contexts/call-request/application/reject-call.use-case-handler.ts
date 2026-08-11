@@ -53,8 +53,6 @@ export class RejectCallUseCaseHandler {
       },
     );
 
-    // Someone else (a concurrent approve/reject call) already moved this
-    // request past REQUESTED between the read above and this write.
     if (!savedCallRequest) {
       throw new InvalidStateTransitionError(
         callRequest.status,

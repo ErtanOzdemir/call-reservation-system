@@ -2,8 +2,8 @@ import { DateTime } from 'luxon';
 import { InvalidReservationTimeError } from '../errors/invalid-reservation-time.error';
 
 export const ISTANBUL_TIME_ZONE = 'Europe/Istanbul';
-const WORKING_START_MINUTES = 10 * 60;
-const WORKING_END_MINUTES = 18 * 60;
+const WORKING_START_MINUTES = 10 * 60; // 10:00
+const WORKING_END_MINUTES = 18 * 60; // 18:00
 const CALL_DURATION_MINUTES = 30;
 const LAST_ISO_WEEKDAY_FOR_WORK = 5; // Luxon: 1 = Monday .. 7 = Sunday
 

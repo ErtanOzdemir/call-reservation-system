@@ -43,7 +43,7 @@ export class ReserveCallUseCaseHandler {
     });
 
     const event: CallRequestedEvent = {
-      requestId: callRequest.id as string,
+      requestId: callRequest.id,
       email: callRequest.email,
       phoneNumber: callRequest.phoneNumber,
       scheduledAt: callRequest.scheduledAt.toISOString(),

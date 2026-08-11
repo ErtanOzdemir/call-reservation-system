@@ -40,13 +40,6 @@ export class CallRequestRepositoryAdapter implements CallRequestRepositoryPort {
     return record ? this.toDomain(record) : null;
   }
 
-  /**
-   * The `hasConflictingRequest` pre-check narrows the odds but can't close
-   * the race on its own (two concurrent reserves can both pass it before
-   * either write lands) — the partial unique index on scheduledAt is the
-   * actual guard, and a duplicate-key error here means the other request
-   * won that race.
-   */
   async create(
     callRequest: CallRequest,
     event: OutboxEvent,

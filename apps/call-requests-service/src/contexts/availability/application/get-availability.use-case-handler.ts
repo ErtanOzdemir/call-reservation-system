@@ -44,7 +44,7 @@ export class GetAvailabilityUseCaseHandler {
     return {
       date,
       slots: slots.map((slot) => ({
-        time: slot.toISO() as string,
+        time: slot.toString(),
         available: !occupiedTimestamps.has(slot.toJSDate().getTime()),
       })),
     };
