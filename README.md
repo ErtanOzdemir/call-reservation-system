@@ -18,6 +18,7 @@ decisions made during implementation.
 - [No polling: how Scheduler learns about the future](#no-polling-how-scheduler-learns-about-the-future)
 - [Call lifecycle & email notifications](#call-lifecycle--email-notifications)
 - [Assumptions & architectural decisions](#assumptions--architectural-decisions)
+- [Bonus / possible improvements](#bonus--possible-improvements)
 - [Folder structure](#folder-structure)
   - [Inside `call-requests-service` — ports & adapters](#inside-call-requests-service--ports--adapters)
 - [Running with Docker](#running-with-docker)
@@ -291,19 +292,6 @@ rendered message. See `apps/communication-service/src/templates/`.
   by the dispatcher's startup catch-up sweep, so at-least-once delivery is
   guaranteed without needing a two-phase commit across MongoDB and RabbitMQ.
 
-  **Bonus / possible improvement — a Dead Letter Queue was intentionally left
-  out.** Right now a message a consumer keeps failing to process is nacked
-  and requeued indefinitely (`channel.nack(message, false, true)`), so a
-  persistently broken message — a malformed payload, a bug in one handler —
-  would loop forever instead of being set aside. A Dead Letter
-  Exchange/Queue, routing a message to a separate queue after N failed
-  delivery attempts, is the standard fix for this: it gives an operator
-  somewhere to see and replay stuck messages instead of them looping
-  silently. It was left out here to keep the messaging topology (exchanges,
-  queues, bindings) as small as this assignment's scope needed — adding it
-  would mean per-queue retry-count tracking and a second exchange per queue,
-  which felt like unnecessary complexity for a project this size.
-
 - **30-minute fixed slots.** Users select a start time from a list of
   pre-computed 30-minute slots (10:00, 10:30, … up to 17:30) instead of
   entering an arbitrary time. This is what `GET /availability` returns, and
@@ -378,31 +366,75 @@ rendered message. See `apps/communication-service/src/templates/`.
   subject, body) rather than only a log line. MailHog runs in the same
   Docker Compose stack, so this adds no extra setup.
 
-- **Communication Service dedupes emails by `eventId`.** Every other
-  consumer in this system (Scheduler's `upsert(requestId, ...)`) is
-  naturally idempotent under RabbitMQ's at-least-once redelivery, because
-  its side effect is overwriting state — replaying the same event twice
-  produces the same document either way. Sending an email has no such
-  natural idempotency: replaying the same event twice sends the email
-  twice. `CallEventsConsumer` ([`apps/communication-service/src/consumers/call-events.consumer.ts`](apps/communication-service/src/consumers/call-events.consumer.ts))
-  reads the wire-level `eventId` off the incoming payload and claims it in a
-  `processed-events` Mongo collection (`eventId` unique index) *before*
-  rendering/sending — a claim that fails with a duplicate-key error means
-  this event was already handled, so the message is acked without sending
-  anything again. If sending fails after a successful claim, the claim is
-  released so the inevitable redelivery can actually retry instead of being
-  skipped as a false duplicate for an email that never went out. This also
-  closes a gap that existed before Scheduler even had an `eventId` to
-  forward: `reminder.due` didn't carry one at all. It now reuses the
-  `eventId` off the `reminder.wakeup` message that triggered it
+- **Dedup by `eventId`, wherever redelivery could otherwise double an
+  effect.** Most consumers in this system are naturally idempotent under
+  RabbitMQ's at-least-once redelivery — their side effect is overwriting
+  state (`upsert`, `$set`), so replaying the same event twice produces the
+  same document either way. Two places aren't so lucky, and both claim the
+  wire-level `eventId` in a Mongo `processed-events` collection (`eventId`
+  unique index) *before* doing their non-idempotent work, releasing the
+  claim if that work fails so a genuine redelivery can still retry instead
+  of being skipped as a false duplicate:
+
+  - **Communication Service**, for the obvious reason — sending an email
+    has no natural idempotency; replaying the same event twice sends it
+    twice. See `CallEventsConsumer`
+    ([`apps/communication-service/src/consumers/call-events.consumer.ts`](apps/communication-service/src/consumers/call-events.consumer.ts)).
+  - **Scheduler Service's `CallEventsConsumer`**
+    ([`apps/scheduler-service/src/consumers/call-events.consumer.ts`](apps/scheduler-service/src/consumers/call-events.consumer.ts)),
+    less obviously — `handleCallApproved` looks idempotent (`upsert` on
+    `requestId`) but isn't quite: it also mints a *fresh* `eventId` for the
+    reminder wakeup it schedules on every call. A redelivered `call.approved`
+    (e.g. the write succeeds but the ack to RabbitMQ never lands) would mint
+    a second wakeup with a different id, invisible to Communication
+    Service's own dedup check, and the customer/admin would get the
+    reminder email twice. Claiming `call.approved`'s own `eventId` here
+    closes that gap the same way.
+
+  Separately, `reminder.due` used to have no `eventId` of its own to dedupe
+  by at all. It now reuses the `eventId` off the `reminder.wakeup` message
+  that triggered it
   ([`apps/scheduler-service/src/consumers/reminder-wakeup.consumer.ts`](apps/scheduler-service/src/consumers/reminder-wakeup.consumer.ts))
-  rather than minting a fresh one per publish — a redelivered wakeup (the
-  broker's at-least-once guarantee, e.g. the process dying after a
-  successful publish but before the ack lands) reprocesses from scratch and
-  would otherwise produce a second `reminder.due` with a different `eventId`,
-  invisible to Communication Service's dedup check. Reusing the id closes
-  that hole: both publishes carry the same `eventId`, so the second is
-  correctly recognized as a duplicate and skipped.
+  rather than minting a fresh one per publish — a redelivered wakeup
+  reprocesses from scratch and would otherwise produce a second
+  `reminder.due` with a different `eventId`. Reusing the id means both
+  publishes carry the same one, so the second is correctly recognized as a
+  duplicate and skipped.
+
+## Bonus / possible improvements
+
+Two places in this system intentionally stop short of a more complete
+solution, given this assignment's scope. Both are called out at the point
+in the code they'd apply to as well.
+
+- **A Dead Letter Queue for permanently-failing messages.** Right now a
+  message a consumer keeps failing to process is nacked and requeued
+  indefinitely (`channel.nack(message, false, true)`), so a persistently
+  broken message — a malformed payload, a bug in one handler — loops
+  forever instead of being set aside. A Dead Letter Exchange/Queue, routing
+  a message to a separate queue after N failed delivery attempts, is the
+  standard fix: it gives an operator somewhere to see and replay stuck
+  messages instead of them looping silently. It was left out here to keep
+  the messaging topology (exchanges, queues, bindings) as small as this
+  assignment's scope needed — adding it would mean per-queue retry-count
+  tracking and a second exchange per queue, which felt like unnecessary
+  complexity for a project this size.
+
+- **A TTL on idempotency claims.** Both `CallEventsConsumer`s (Scheduler and
+  Communication) claim an `eventId` in a `processed-events` collection
+  *before* doing their non-idempotent work, releasing the claim only if
+  that work explicitly fails. If the process crashes in between — work
+  never completes, `release` never runs — the claim is stuck forever, and a
+  later redelivery sees "already handled" and silently skips work that was,
+  in fact, never done. A TTL index on the claim would let a stuck claim
+  expire and become retryable again, but a *blanket* TTL reintroduces the
+  original problem for successful claims: a sufficiently late redelivery
+  (broker outage, etc.) would find the claim already expired and redo work
+  that already happened. Doing this correctly needs a two-phase claim —
+  mark it `in-progress` with a short TTL (a partial index scoped to that
+  status), then drop the TTL once the work actually completes — which is
+  more moving parts than this project's scope called for; the current
+  claim/release pattern was judged sufficient.
 
 ## Folder structure
 

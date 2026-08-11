@@ -8,6 +8,10 @@ import {
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConsumeMessage } from 'amqplib';
 import { randomUUID } from 'node:crypto';
+import {
+  PROCESSED_EVENT_REPOSITORY,
+  ProcessedEventRepository,
+} from '../idempotency/processed-event.repository';
 import { RabbitMqConnectionService } from '../shared-kernel/rabbitmq/rabbitmq-connection.service';
 import {
   SCHEDULED_CALL_REPOSITORY,
@@ -26,6 +30,8 @@ export class CallEventsConsumer implements OnModuleInit {
     private readonly rabbitMq: RabbitMqConnectionService,
     @Inject(SCHEDULED_CALL_REPOSITORY)
     private readonly scheduledCallRepository: ScheduledCallRepository,
+    @Inject(PROCESSED_EVENT_REPOSITORY)
+    private readonly processedEvents: ProcessedEventRepository,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -67,27 +73,45 @@ export class CallEventsConsumer implements OnModuleInit {
   }
 
   private async handleMessage(message: ConsumeMessage): Promise<void> {
-    switch (message.fields.routingKey) {
-      case RoutingKey.CallApproved:
-        await this.handleCallApproved(message);
-        break;
-      case RoutingKey.CallCanceled:
-        await this.handleCallCanceled(message);
-        break;
-      default:
-        this.logger.warn(
-          `No handler for routing key "${message.fields.routingKey}"; dropping it.`,
-        );
+    const payload: unknown = JSON.parse(message.content.toString('utf8'));
+  
+    const { eventId } = payload as { eventId?: string };
+
+    if (eventId && !(await this.processedEvents.claim(eventId))) {
+      this.logger.log(
+        `Skipping already-processed event ${eventId} ("${message.fields.routingKey}").`,
+      );
+      this.rabbitMq.channel.ack(message);
+      return;
+    }
+
+    try {
+      switch (message.fields.routingKey) {
+        case RoutingKey.CallApproved:
+          await this.handleCallApproved(payload as CallApprovedEvent);
+          break;
+        case RoutingKey.CallCanceled:
+          await this.handleCallCanceled(payload as CallCanceledEvent);
+          break;
+        default:
+          this.logger.warn(
+            `No handler for routing key "${message.fields.routingKey}"; dropping it.`,
+          );
+      }
+    } catch (error) {
+      // Release the claim so a redelivery (triggered by the nack below, one
+      // level up) can actually retry instead of being skipped as a false
+      // duplicate for a write that never happened.
+      if (eventId) {
+        await this.processedEvents.release(eventId);
+      }
+      throw error;
     }
 
     this.rabbitMq.channel.ack(message);
   }
 
-  private async handleCallApproved(message: ConsumeMessage): Promise<void> {
-    const event = JSON.parse(
-      message.content.toString('utf8'),
-    ) as CallApprovedEvent;
-
+  private async handleCallApproved(event: CallApprovedEvent): Promise<void> {
     const scheduledAt = new Date(event.scheduledAt);
     const targetFireAt = new Date(
       scheduledAt.getTime() - REMINDER_LEAD_TIME_MS,
@@ -107,11 +131,7 @@ export class CallEventsConsumer implements OnModuleInit {
     this.logger.log(`Marked call request ${event.requestId} as scheduled.`);
   }
 
-  private async handleCallCanceled(message: ConsumeMessage): Promise<void> {
-    const event = JSON.parse(
-      message.content.toString('utf8'),
-    ) as CallCanceledEvent;
-
+  private async handleCallCanceled(event: CallCanceledEvent): Promise<void> {
     await this.scheduledCallRepository.cancel(event.requestId);
 
     this.logger.log(`Marked call request ${event.requestId} as canceled.`);
