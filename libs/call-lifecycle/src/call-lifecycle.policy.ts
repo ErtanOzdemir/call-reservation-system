@@ -1,4 +1,4 @@
-import { CallStatus } from '../enums/call-request/call-status';
+import { CallStatus } from '@call-reservation/shared-types';
 import { InvalidStateTransitionError } from './invalid-state-transition.error';
 
 const ALLOWED_TRANSITIONS: Record<CallStatus, CallStatus[]> = {

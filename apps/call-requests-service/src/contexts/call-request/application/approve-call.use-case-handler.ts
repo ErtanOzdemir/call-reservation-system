@@ -1,8 +1,10 @@
 import {
-  CallApprovedEvent,
   CallLifecyclePolicy,
-  CallStatus,
   InvalidStateTransitionError,
+} from '@call-reservation/call-lifecycle';
+import {
+  CallApprovedEvent,
+  CallStatus,
   RoutingKey,
 } from '@call-reservation/shared-types';
 import { Inject, Injectable } from '@nestjs/common';

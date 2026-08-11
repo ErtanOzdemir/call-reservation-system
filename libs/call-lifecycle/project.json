@@ -1,0 +1,9 @@
+{
+  "name": "call-lifecycle",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/call-lifecycle/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:domain"],
+  "// targets": "to see all targets run: nx show project call-lifecycle --web",
+  "targets": {}
+}

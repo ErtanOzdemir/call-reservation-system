@@ -1,5 +1,5 @@
+import { CallLifecyclePolicy } from '@call-reservation/call-lifecycle';
 import {
-  CallLifecyclePolicy,
   CallStatus,
   isMongoDuplicateKeyError,
 } from '@call-reservation/shared-types';

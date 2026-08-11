@@ -446,7 +446,11 @@ call-reservation-system/
 │   ├── communication-service/   # email templates · SMTP sender · terminal consumer
 │   └── web-service/             # React frontend (User view / Admin view)
 ├── libs/
-│   └── shared-types/            # DTOs, enums, and event-payload contracts shared by every app
+│   ├── shared-types/            # DTOs, enums, and event-payload contracts shared by every app
+│   └── call-lifecycle/          # CallLifecyclePolicy + InvalidStateTransitionError — the one
+│                                 # state-transition table shared by call-requests-service and
+│                                 # scheduler-service; kept out of shared-types since it's domain
+│                                 # behavior, not a wire contract
 ├── scripts/
 │   ├── docker-compose.yml       # base service definitions
 │   ├── docker-compose.dev.yml   # local port-mapping overlay
@@ -478,7 +482,8 @@ call-requests-service/src/
     ├── call-request/               # bounded context — the aggregate + its lifecycle
     │   ├── domain/
     │   │   ├── entities/call-request.entity.ts
-    │   │   ├── policies/           # working-hours policy, lifecycle transition rules
+    │   │   ├── policies/           # working-hours policy (booking window) — the lifecycle
+    │   │   │                       # transition table itself lives in libs/call-lifecycle
     │   │   └── ports/               # repository port, event-publisher port
     │   ├── application/            # one use case per action: reserve, approve, reject, cancel, mark-called, add-note
     │   └── infrastructure/
@@ -486,8 +491,8 @@ call-requests-service/src/
     │       ├── mongo/                # repository adapter + schema (embeds the outbox)
     │       └── outbox/               # OutboxDispatcherService — the change-stream relay
     └── availability/                # bounded context — read model derived from call-request
-        ├── domain/policies/         # reuses working-hours policy
-        └── infrastructure/mongo/    # read-only slot lookup
+        ├── application/             # reuses call-request's working-hours policy directly
+        └── infrastructure/mongo/    # read-only slot lookup, filtered via CallLifecyclePolicy
 ```
 
 `scheduler-service` and `communication-service` stay flat — a `consumers/`

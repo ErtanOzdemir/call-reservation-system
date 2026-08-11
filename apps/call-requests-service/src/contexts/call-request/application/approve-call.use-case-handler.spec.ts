@@ -1,8 +1,5 @@
-import {
-  CallStatus,
-  InvalidStateTransitionError,
-  RoutingKey,
-} from '@call-reservation/shared-types';
+import { InvalidStateTransitionError } from '@call-reservation/call-lifecycle';
+import { CallStatus, RoutingKey } from '@call-reservation/shared-types';
 import { CallRequestNotFoundError } from '../domain/errors/call-request-not-found.error';
 import { ApproveCallUseCase } from './useCase/approve-call.use-case';
 import { ApproveCallUseCaseHandler } from './approve-call.use-case-handler';

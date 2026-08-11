@@ -1,8 +1,8 @@
 import {
   CallLifecyclePolicy,
-  CallStatus,
   InvalidStateTransitionError,
-} from '@call-reservation/shared-types';
+} from '@call-reservation/call-lifecycle';
+import { CallStatus } from '@call-reservation/shared-types';
 import { Inject, Injectable } from '@nestjs/common';
 import { CallRequest } from '../domain/entities/call-request.entity';
 import { CallNotYetDueError } from '../domain/errors/call-not-yet-due.error';

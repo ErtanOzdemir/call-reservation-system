@@ -1,4 +1,4 @@
-import { CallStatus } from '../enums/call-request/call-status';
+import { CallStatus } from '@call-reservation/shared-types';
 
 export class InvalidStateTransitionError extends Error {
   constructor(from: CallStatus, to: CallStatus) {

@@ -1,7 +1,5 @@
-import {
-  CallStatus,
-  InvalidStateTransitionError,
-} from '@call-reservation/shared-types';
+import { InvalidStateTransitionError } from '@call-reservation/call-lifecycle';
+import { CallStatus } from '@call-reservation/shared-types';
 import { CallNotYetDueError } from '../domain/errors/call-not-yet-due.error';
 import { CallRequestNotFoundError } from '../domain/errors/call-request-not-found.error';
 import { MarkCalledUseCase } from './useCase/mark-called.use-case';

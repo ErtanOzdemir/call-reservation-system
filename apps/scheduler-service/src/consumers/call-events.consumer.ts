@@ -1,8 +1,8 @@
+import { CallLifecyclePolicy } from '@call-reservation/call-lifecycle';
 import {
   CALL_EVENTS_EXCHANGE,
   CallApprovedEvent,
   CallCanceledEvent,
-  CallLifecyclePolicy,
   CallStatus,
   RoutingKey,
 } from '@call-reservation/shared-types';

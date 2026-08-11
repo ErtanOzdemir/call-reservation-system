@@ -1,8 +1,5 @@
-import {
-  CallRequestResponse,
-  InvalidStateTransitionError,
-  Role,
-} from '@call-reservation/shared-types';
+import { InvalidStateTransitionError } from '@call-reservation/call-lifecycle';
+import { CallRequestResponse, Role } from '@call-reservation/shared-types';
 import {
   Body,
   ConflictException,

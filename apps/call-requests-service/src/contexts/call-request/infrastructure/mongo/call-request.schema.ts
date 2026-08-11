@@ -1,7 +1,5 @@
-import {
-  CallLifecyclePolicy,
-  CallStatus,
-} from '@call-reservation/shared-types';
+import { CallLifecyclePolicy } from '@call-reservation/call-lifecycle';
+import { CallStatus } from '@call-reservation/shared-types';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
