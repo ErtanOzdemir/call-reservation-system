@@ -9,6 +9,8 @@ decisions made during implementation.
 ## Table of contents
 
 - [Tech stack](#tech-stack)
+- [Running with Docker](#running-with-docker)
+  - [Tips: skipping the wait during local testing](#tips-skipping-the-wait-during-local-testing)
 - [High-level architecture](#high-level-architecture)
   - [Which event goes where, and why](#which-event-goes-where-and-why)
   - [Example: what happens when a user creates a call request](#example-what-happens-when-a-user-creates-a-call-request)
@@ -21,9 +23,7 @@ decisions made during implementation.
 - [Bonus / possible improvements](#bonus--possible-improvements)
 - [Folder structure](#folder-structure)
   - [Inside `call-requests-service` — ports & adapters](#inside-call-requests-service--ports--adapters)
-- [Running with Docker](#running-with-docker)
 - [Local development](#local-development)
-- [Viewing the mock emails](#viewing-the-mock-emails)
 
 ## Tech stack
 
@@ -33,6 +33,90 @@ decisions made during implementation.
 - **Message broker:** RabbitMQ (topic exchange + delayed-message plugin)
 - **Frontend:** React (Vite), calls `call-requests-service` only
 - **Infrastructure:** Docker & Docker Compose
+
+## Running with Docker
+
+The full system — MongoDB, RabbitMQ, MailHog, all three NestJS services, and
+the frontend — is fully containerized. As required by the assignment, the
+compose files live in `scripts/`, and the stack comes up from there:
+
+```bash
+cd scripts
+cp .env.example .env
+docker compose up --build -d
+docker compose ps
+```
+
+`scripts/.env`'s `COMPOSE_FILE` value merges `docker-compose.yml` (base
+service definitions) with `docker-compose.dev.yml` (a local overlay that
+publishes every container's port to `localhost` and supplies default
+credentials), so `docker compose up` is sufficient.
+
+Once the stack is healthy:
+
+| Service | URL | Notes |
+|---|---|---|
+| Frontend | http://localhost:4200 | User view / Admin view |
+| Call Requests Service API | http://localhost:3001 | REST API the frontend calls |
+| Scheduler Service | — | no HTTP surface; internal only |
+| Communication Service | — | no HTTP surface; internal only |
+| RabbitMQ Management UI | http://localhost:15672 | user/pass: `reservation` / `reservation` |
+| MailHog inbox | http://localhost:8025 | every email sent by the system lands here |
+| MongoDB | `mongodb://localhost:27017/?replicaSet=rs0&directConnection=true` | single-member `rs0` replica set (required for change streams) |
+
+To stop the stack while keeping data:
+
+```bash
+cd scripts
+docker compose down
+```
+
+To also remove the MongoDB and RabbitMQ volumes:
+
+```bash
+cd scripts
+docker compose down --volumes
+```
+
+### Tips: skipping the wait during local testing
+
+Both the reminder and the daily digest are timing-driven by design (see
+"No polling" below), so exercising them end-to-end normally means waiting —
+up to 2 hours for a reminder, or until 18:00 Europe/Istanbul for the digest.
+Two ways to shortcut that against a running dev stack, without touching any
+application code or restarting a service:
+
+- **Reminder.** After a call is approved, `scheduler-service` holds a
+  `pendingReminder.targetFireAt` field on that call's document in
+  `scheduler.scheduled-calls`. `ReminderOutboxDispatcherService` always
+  recomputes the remaining delay from that field, on every change-stream
+  event it sees — it never trusts a value computed earlier. So connecting to
+  Mongo (`mongodb://localhost:27017/?replicaSet=rs0&directConnection=true`,
+  e.g. with `mongosh`) and editing that one field to a few
+  seconds from now makes the wakeup fire almost immediately: the write
+  itself is what triggers the dispatcher.
+
+- **Digest.** `DigestOutboxDispatcherService` reacts to inserts into
+  `scheduler.pending-digests` — the daily cron (`DailyDigestService`) is
+  just the normal way a document gets inserted there, not the only way.
+  Inserting a document by hand with the same shape (`date`, `eventId`,
+  `payload: { adminEmail, date, calls }`, see
+  [`pending-digest.schema.ts`](apps/scheduler-service/src/digest/pending-digest.schema.ts))
+  gets it picked up and dispatched as `digest.due` right away, with no need
+  to wait for 18:00 or edit the cron expression.
+
+Both routes work by feeding the existing outbox dispatchers a document they
+already know how to handle, rather than changing how or when they normally
+fire — so there's nothing to revert afterward.
+
+- **Emails.** Communication Service is the only service that sends email.
+  Two ways to inspect what actually went out, once a reminder or digest has
+  been sped up with the tricks above: the **MailHog UI**
+  (http://localhost:8025) shows every email as a rendered message
+  (from/to/subject/body), for the whole run; **Docker logs**
+  (`docker compose logs -f communication-service`, from `scripts/`) log
+  every send too, with the recipient partially masked, e.g.
+  `j***n@example.com`.
 
 ## High-level architecture
 
@@ -91,6 +175,7 @@ flowchart LR
 | `call.approved` | Call Requests Service | Communication, Scheduler | Communication emails the customer; Scheduler starts tracking this call so it can remind later |
 | `call.rejected` | Call Requests Service | Communication | Rejection email to the customer |
 | `call.canceled` | Call Requests Service | Communication, Scheduler | Cancellation email to the customer; Scheduler stops tracking the call |
+| `reminder.wakeup` | Scheduler Service | Scheduler Service (self, via `reminder.delay` delayed exchange) | Fires 2h before the call; if still `SCHEDULED`, publishes `reminder.due` |
 | `reminder.due` | Scheduler Service | Communication | Email to both customer and admin, 2 hours before the call |
 | `digest.due` | Scheduler Service | Communication | Daily summary email to the admin |
 
@@ -167,15 +252,6 @@ isolating from infrastructure: working-hours validation, slot-conflict
 checks, the call lifecycle state machine, and auth. It is implemented with
 ports & adapters (hexagonal architecture):
 
-```mermaid
-flowchart LR
-    HTTP["HTTP Controller<br/>DTO + validation"] -->|calls| Core
-    Core["Domain Core<br/>use cases · policies<br/>no Mongo/RabbitMQ imports"] -->|via ports| Mongo["Mongo Adapter<br/>implements both ports"]
-    Mongo -->|single atomic write| Doc[("reservation + outbox event<br/>in ONE document")]
-    Doc -->|change stream| Relay["Outbox Dispatcher<br/>tails the change stream"]
-    Relay -->|publish| Exchange{{"call.events exchange"}}
-```
-
 The domain core (use cases, entities, policies) does not import Mongo,
 Mongoose, or amqplib; it depends only on plain TypeScript ports (interfaces).
 The infrastructure layer implements those ports as adapters (HTTP
@@ -184,6 +260,32 @@ means: each use case is isolated behind its own port, business rules can be
 unit-tested with an in-memory repository with no framework or database
 dependency, and replacing Mongo would only touch the `infrastructure/`
 folder.
+
+Concretely, where each kind of code lives:
+
+- **`domain/`** — the rules themselves.
+  [`call-request.entity.ts`](apps/call-requests-service/src/contexts/call-request/domain/entities/call-request.entity.ts)
+  holds the aggregate and its state transitions; `policies/` holds the
+  working-hours policy (the booking-window check); `ports/` holds nothing
+  but plain TypeScript interfaces — `CallRequestRepository`,
+  `EventPublisher` — the "doors" the domain talks through without knowing
+  what's on the other side (Mongo, RabbitMQ, or an in-memory fake in a
+  test).
+- **`application/`** — one use case per action (reserve, approve, reject,
+  cancel, mark-called, add-note). Each orchestrates domain entities and
+  policies to decide things like whether a slot is actually free or whether
+  a call can move from `SCHEDULED` to `CANCELED` — still without importing
+  Mongo or amqplib, only the ports from `domain/`.
+- **`infrastructure/`** — the adapters that give those ports something real
+  to talk to: `mongo/` implements the repository port with Mongoose,
+  `outbox/` is `OutboxDispatcherService` tailing the change stream, `http/`
+  is the controllers and DTO validation translating HTTP into calls on the
+  use cases above.
+
+So the actual decisions — is this slot free, can this call transition, is
+there already an admin — are made entirely inside `domain/` and
+`application/`, without either layer ever touching a database driver or a
+message broker client.
 
 For background on this pattern:
 [Hexagonal Architecture — Alistair Cockburn](https://alistair.cockburn.us/hexagonal-architecture/).
@@ -309,6 +411,12 @@ rendered message. See `apps/communication-service/src/templates/`.
   re-booking). A losing concurrent insert now fails with a Mongo duplicate-key
   error, which the repository adapter turns into the same `SlotUnavailableError`
   (409) the pre-check already produced for the non-concurrent case.
+
+- **Authentication, even though the assignment didn't call for it.** The
+  assignment doesn't ask for login or accounts anywhere. It was added anyway
+  because managing who's a customer and who's the admin is simpler with real
+  accounts than with, say, aπn unauthenticated admin endpoint or a shared
+  secret.
 
 - **Single admin, enforced at the database and carried on the wire.**
   `call-requests-service` allows at most one `ADMIN` user, ever — a partial
@@ -500,50 +608,6 @@ folder, a `state/` or `templates/` folder, and one `app.module.ts` each; no
 `domain/`/`application/`/`infrastructure/` split, for the reasons described
 above.
 
-## Running with Docker
-
-The full system — MongoDB, RabbitMQ, MailHog, all three NestJS services, and
-the frontend — is fully containerized. As required by the assignment, the
-compose files live in `scripts/`, and the stack comes up from there:
-
-```bash
-cd scripts
-cp .env.example .env
-docker compose up --build -d
-docker compose ps
-```
-
-`scripts/.env`'s `COMPOSE_FILE` value merges `docker-compose.yml` (base
-service definitions) with `docker-compose.dev.yml` (a local overlay that
-publishes every container's port to `localhost` and supplies default
-credentials), so `docker compose up` is sufficient.
-
-Once the stack is healthy:
-
-| Service | URL | Notes |
-|---|---|---|
-| Frontend | http://localhost:4200 | User view / Admin view |
-| Call Requests Service API | http://localhost:3001 | REST API the frontend calls |
-| Scheduler Service | — | no HTTP surface; internal only |
-| Communication Service | — | no HTTP surface; internal only |
-| RabbitMQ Management UI | http://localhost:15672 | user/pass: `reservation` / `reservation` |
-| MailHog inbox | http://localhost:8025 | every email sent by the system lands here |
-| MongoDB | `mongodb://localhost:27017/?replicaSet=rs0&directConnection=true` | single-member `rs0` replica set (required for change streams) |
-
-To stop the stack while keeping data:
-
-```bash
-cd scripts
-docker compose down
-```
-
-To also remove the MongoDB and RabbitMQ volumes:
-
-```bash
-cd scripts
-docker compose down --volumes
-```
-
 ## Local development
 
 For faster iteration than rebuilding Docker images on every change, run only
@@ -576,14 +640,3 @@ Each service can also be served individually, e.g.
 npm test              # nx run-many -t test — unit tests for every project
 npm run lint          # nx run-many -t lint
 ```
-
-## Viewing the mock emails
-
-Communication Service is the only service that sends email. Two ways to
-inspect what was sent:
-
-- **MailHog UI:** http://localhost:8025 — every email as a rendered message
-  (from/to/subject/body), for the whole run.
-- **Docker logs:** `docker compose logs -f communication-service` (from
-  `scripts/`) — every send is logged with the recipient partially masked,
-  e.g. `j***n@example.com`.
