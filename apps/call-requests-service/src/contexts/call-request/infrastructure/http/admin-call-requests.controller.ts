@@ -31,6 +31,7 @@ import { SetCallRequestNotesUseCase } from '../../application/useCase/set-call-r
 import { SetCallRequestNotesUseCaseHandler } from '../../application/set-call-request-notes.use-case-handler';
 import { toCallRequestResponse } from '../../application/to-call-request-response';
 import { CallRequest } from '../../domain/entities/call-request.entity';
+import { CallNotYetDueError } from '../../domain/errors/call-not-yet-due.error';
 import { CallRequestNotFoundError } from '../../domain/errors/call-request-not-found.error';
 import { UpdateCallRequestNotesDto } from './dto/update-call-request-notes.dto';
 
@@ -104,7 +105,10 @@ export class AdminCallRequestsController {
         throw new NotFoundException(error.message);
       }
 
-      if (error instanceof InvalidStateTransitionError) {
+      if (
+        error instanceof InvalidStateTransitionError ||
+        error instanceof CallNotYetDueError
+      ) {
         throw new ConflictException(error.message);
       }
 

@@ -5,6 +5,7 @@ import {
 } from '@call-reservation/shared-types';
 import { Inject, Injectable } from '@nestjs/common';
 import { CallRequest } from '../domain/entities/call-request.entity';
+import { CallNotYetDueError } from '../domain/errors/call-not-yet-due.error';
 import { CallRequestNotFoundError } from '../domain/errors/call-request-not-found.error';
 import {
   CALL_REQUEST_REPOSITORY,
@@ -31,6 +32,10 @@ export class MarkCalledUseCaseHandler {
       callRequest.status,
       CallStatus.CALLED,
     );
+
+    if (callRequest.scheduledAt > new Date()) {
+      throw new CallNotYetDueError();
+    }
 
     const calledCallRequest = callRequest.withStatus(CallStatus.CALLED);
 

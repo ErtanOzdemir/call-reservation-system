@@ -2,6 +2,7 @@ import {
   CallStatus,
   InvalidStateTransitionError,
 } from '@call-reservation/shared-types';
+import { CallNotYetDueError } from '../domain/errors/call-not-yet-due.error';
 import { CallRequestNotFoundError } from '../domain/errors/call-request-not-found.error';
 import { MarkCalledUseCase } from './useCase/mark-called.use-case';
 import { MarkCalledUseCaseHandler } from './mark-called.use-case-handler';
@@ -43,6 +44,22 @@ describe('MarkCalledUseCaseHandler', () => {
     await expect(
       handler.execute(new MarkCalledUseCase('req-1')),
     ).rejects.toBeInstanceOf(InvalidStateTransitionError);
+  });
+
+  it('rejects marking a call as called before its scheduled time', async () => {
+    const repository = new InMemoryCallRequestRepository();
+    repository.seed(
+      makeCallRequest({
+        id: 'req-1',
+        status: CallStatus.SCHEDULED,
+        scheduledAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      }),
+    );
+    const handler = new MarkCalledUseCaseHandler(repository);
+
+    await expect(
+      handler.execute(new MarkCalledUseCase('req-1')),
+    ).rejects.toBeInstanceOf(CallNotYetDueError);
   });
 
   it('rejects if the request was transitioned by someone else between the read and the write', async () => {
