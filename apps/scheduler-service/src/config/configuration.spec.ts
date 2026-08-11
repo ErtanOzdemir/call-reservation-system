@@ -17,24 +17,6 @@ describe('configuration', () => {
     process.env = originalEnvironment;
   });
 
-  it('uses the default port when PORT is not set', () => {
-    delete process.env.PORT;
-
-    expect(configuration().app.port).toBe(3003);
-  });
-
-  it('coerces PORT to a number', () => {
-    process.env.PORT = '3103';
-
-    expect(configuration().app.port).toBe(3103);
-  });
-
-  it('rejects an invalid port', () => {
-    process.env.PORT = '70000';
-
-    expect(configuration).toThrow();
-  });
-
   it('rejects a missing MongoDB URL', () => {
     delete process.env.MONGODB_URI;
 

@@ -47,10 +47,12 @@ docker compose up --build -d
 docker compose ps
 ```
 
-`scripts/.env`'s `COMPOSE_FILE` value merges `docker-compose.yml` (base
-service definitions) with `docker-compose.dev.yml` (a local overlay that
-publishes every container's port to `localhost` and supplies default
-credentials), so `docker compose up` is sufficient.
+`docker-compose.yml` defines every service and publishes each container's
+port to `localhost`. Most values (ports, RabbitMQ credentials) fall back to
+a sensible default if `scripts/.env` doesn't set them, but `JWT_SECRET` has
+no default — `call-requests-service` requires it to be at least 32
+characters and refuses to start without one — so `cp .env.example .env` is
+a required step, not an optional override.
 
 Once the stack is healthy:
 
@@ -58,8 +60,8 @@ Once the stack is healthy:
 |---|---|---|
 | Frontend | http://localhost:4200 | User view / Admin view |
 | Call Requests Service API | http://localhost:3001 | REST API the frontend calls |
-| Scheduler Service | — | no HTTP surface; internal only |
-| Communication Service | — | no HTTP surface; internal only |
+| Scheduler Service | — | no HTTP server at all — `NestFactory.createApplicationContext`, entirely event-driven |
+| Communication Service | — | same as above — no HTTP server, entirely event-driven |
 | RabbitMQ Management UI | http://localhost:15672 | user/pass: `reservation` / `reservation` |
 | MailHog inbox | http://localhost:8025 | every email sent by the system lands here |
 | MongoDB | `mongodb://localhost:27017/?replicaSet=rs0&directConnection=true` | single-member `rs0` replica set (required for change streams) |
@@ -267,15 +269,17 @@ Concretely, where each kind of code lives:
   [`call-request.entity.ts`](apps/call-requests-service/src/contexts/call-request/domain/entities/call-request.entity.ts)
   holds the aggregate and its state transitions; `policies/` holds the
   working-hours policy (the booking-window check); `ports/` holds nothing
-  but plain TypeScript interfaces — `CallRequestRepository`,
-  `EventPublisher` — the "doors" the domain talks through without knowing
-  what's on the other side (Mongo, RabbitMQ, or an in-memory fake in a
-  test).
+  but a plain TypeScript interface — `CallRequestRepositoryPort` — the one
+  "door" the domain talks through without knowing what's on the other side
+  (Mongo, or an in-memory fake in a test). There's no separate event-publisher
+  port: outbox events are plain `OutboxEvent` objects the domain hands back,
+  which the repository embeds directly onto the document it's already
+  writing (see the outbox pattern above).
 - **`application/`** — one use case per action (reserve, approve, reject,
-  cancel, mark-called, add-note). Each orchestrates domain entities and
-  policies to decide things like whether a slot is actually free or whether
-  a call can move from `SCHEDULED` to `CANCELED` — still without importing
-  Mongo or amqplib, only the ports from `domain/`.
+  cancel, mark-called, set notes, list, list mine). Each orchestrates domain
+  entities and policies to decide things like whether a slot is actually
+  free or whether a call can move from `SCHEDULED` to `CANCELED` — still
+  without importing Mongo or amqplib, only the ports from `domain/`.
 - **`infrastructure/`** — the adapters that give those ports something real
   to talk to: `mongo/` implements the repository port with Mongoose,
   `outbox/` is `OutboxDispatcherService` tailing the change stream, `http/`
@@ -412,10 +416,20 @@ rendered message. See `apps/communication-service/src/templates/`.
   error, which the repository adapter turns into the same `SlotUnavailableError`
   (409) the pre-check already produced for the non-concurrent case.
 
+- **A call can't be marked Called before its scheduled time.** `mark-called`
+  requires `SCHEDULED → CALLED`, which `CallLifecyclePolicy` already allows,
+  but that alone would let an admin mark a call Called minutes after
+  approving it, hours before it actually happens. `MarkCalledUseCaseHandler`
+  additionally checks the call's `scheduledAt` against the current time and
+  throws `CallNotYetDueError` if it hasn't passed yet — a rule the lifecycle
+  state machine itself doesn't (and shouldn't) know about, since it's a
+  timing check, not a state-transition rule. See
+  [`mark-called.use-case-handler.ts`](apps/call-requests-service/src/contexts/call-request/application/mark-called.use-case-handler.ts).
+
 - **Authentication, even though the assignment didn't call for it.** The
   assignment doesn't ask for login or accounts anywhere. It was added anyway
   because managing who's a customer and who's the admin is simpler with real
-  accounts than with, say, aπn unauthenticated admin endpoint or a shared
+  accounts than with, say, an unauthenticated admin endpoint or a shared
   secret.
 
 - **Single admin, enforced at the database and carried on the wire.**
@@ -560,8 +574,7 @@ call-reservation-system/
 │                                 # scheduler-service; kept out of shared-types since it's domain
 │                                 # behavior, not a wire contract
 ├── scripts/
-│   ├── docker-compose.yml       # base service definitions
-│   ├── docker-compose.dev.yml   # local port-mapping overlay
+│   ├── docker-compose.yml       # every service, including local port mappings
 │   ├── mongodb/                 # replica-set init script (required for Mongo change streams)
 │   ├── rabbitmq/                # Dockerfile with the delayed-message plugin baked in
 │   ├── services/Dockerfile      # shared multi-stage build for the 3 NestJS apps
@@ -592,8 +605,10 @@ call-requests-service/src/
     │   │   ├── entities/call-request.entity.ts
     │   │   ├── policies/           # working-hours policy (booking window) — the lifecycle
     │   │   │                       # transition table itself lives in libs/call-lifecycle
-    │   │   └── ports/               # repository port, event-publisher port
-    │   ├── application/            # one use case per action: reserve, approve, reject, cancel, mark-called, add-note
+    │   │   └── ports/               # repository port only — outbox events are embedded
+    │   │                            # onto the document the repository already writes
+    │   ├── application/            # one use case per action: reserve, approve, reject, cancel,
+    │   │                           # mark-called, set-call-request-notes, list, list-mine
     │   └── infrastructure/
     │       ├── http/                # user-facing + admin controllers
     │       ├── mongo/                # repository adapter + schema (embeds the outbox)
