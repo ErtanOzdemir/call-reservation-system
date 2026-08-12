@@ -56,15 +56,15 @@ a required step, not an optional override.
 
 Once the stack is healthy:
 
-| Service | URL | Notes |
-|---|---|---|
-| Frontend | http://localhost:4200 | User view / Admin view |
-| Call Requests Service API | http://localhost:3001 | REST API the frontend calls |
-| Scheduler Service | — | no HTTP server at all — `NestFactory.createApplicationContext`, entirely event-driven |
-| Communication Service | — | same as above — no HTTP server, entirely event-driven |
-| RabbitMQ Management UI | http://localhost:15672 | user/pass: `reservation` / `reservation` |
-| MailHog inbox | http://localhost:8025 | every email sent by the system lands here |
-| MongoDB | `mongodb://localhost:27017/?replicaSet=rs0&directConnection=true` | single-member `rs0` replica set (required for change streams) |
+| Service                   | URL                                                               | Notes                                                                                 |
+| ------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Frontend                  | http://localhost:4200                                             | User view / Admin view                                                                |
+| Call Requests Service API | http://localhost:3001                                             | REST API the frontend calls                                                           |
+| Scheduler Service         | —                                                                 | no HTTP server at all — `NestFactory.createApplicationContext`, entirely event-driven |
+| Communication Service     | —                                                                 | same as above — no HTTP server, entirely event-driven                                 |
+| RabbitMQ Management UI    | http://localhost:15672                                            | user/pass: `reservation` / `reservation`                                              |
+| MailHog inbox             | http://localhost:8025                                             | every email sent by the system lands here                                             |
+| MongoDB                   | `mongodb://localhost:27017/?replicaSet=rs0&directConnection=true` | single-member `rs0` replica set (required for change streams)                         |
 
 To stop the stack while keeping data:
 
@@ -89,14 +89,54 @@ Two ways to shortcut that against a running dev stack, without touching any
 application code or restarting a service:
 
 - **Reminder.** After a call is approved, `scheduler-service` holds a
-  `pendingReminder.targetFireAt` field on that call's document in
-  `scheduler.scheduled-calls`. `ReminderOutboxDispatcherService` always
-  recomputes the remaining delay from that field, on every change-stream
-  event it sees — it never trusts a value computed earlier. So connecting to
-  Mongo (`mongodb://localhost:27017/?replicaSet=rs0&directConnection=true`,
-  e.g. with `mongosh`) and editing that one field to a few
-  seconds from now makes the wakeup fire almost immediately: the write
-  itself is what triggers the dispatcher.
+  `pendingReminder` field (`{ eventId, requestId, targetFireAt }`, see
+  [`mongo-scheduled-call-repository.ts`](apps/scheduler-service/src/state/mongo-scheduled-call-repository.ts))
+  on that call's document in `scheduler.scheduled-calls`.
+  `ReminderOutboxDispatcherService` always recomputes the remaining delay
+  from `targetFireAt`, on every change-stream event it sees — the write
+  itself is what triggers the dispatcher, no restart or polling needed.
+
+  To trigger a reminder manually:
+  1. Find the relevant call document in MongoDB
+     (`mongodb://localhost:27017/?replicaSet=rs0&directConnection=true`,
+     e.g. with `mongosh` or Compass).
+  2. If `pendingReminder` exists, update only `targetFireAt` to a few
+     seconds in the future.
+  3. Do not remove or change `eventId` or `requestId`.
+  4. If `pendingReminder` does not exist, create it with `eventId`,
+     `requestId`, and `targetFireAt` — `requestId` must match the
+     document's own top-level `requestId`.
+  5. Once the change is saved, the reminder is triggered automatically.
+
+  ```json
+  {
+    "_id": { "$oid": "6a7c222e53581e5a89085ff8" },
+    "requestId": "<call-request-id>",
+    "email": "user@example.com",
+    "adminEmail": "admin@example.com",
+    "status": "SCHEDULED",
+    "scheduledAt": { "$date": "2026-08-13T07:30:00.000Z" },
+    "pendingReminder": {
+      "eventId": "<random-uuid>",
+      "requestId": "<call-request-id>",
+      "targetFireAt": { "$date": "2026-08-12T07:52:58.814Z" }
+    }
+  }
+  ```
+
+  Getting step 3 or 4 wrong doesn't error visibly: the wakeup still
+  publishes and `pendingReminder` still gets cleared, but
+  `ReminderWakeupConsumer` looks the call up by the wrong (or `undefined`)
+  requestId and silently skips it — no email, and it can't be replayed
+  since the field is already gone.
+
+> [!WARNING]
+> In Compass, edit via the row's list/tree view (the "☰" icon) — drill
+> into `pendingReminder.targetFireAt`, edit that single value in place,
+> then hit **Update**. Opening the document with the `{}` (raw JSON)
+> button and editing the pasted JSON did not reliably get written
+> through — the change stream saw nothing fire. The list view's
+> per-field edit did.
 
 - **Digest.** `DigestOutboxDispatcherService` reacts to inserts into
   `scheduler.pending-digests` — the daily cron (`DailyDigestService`) is
@@ -105,7 +145,27 @@ application code or restarting a service:
   `payload: { adminEmail, date, calls }`, see
   [`pending-digest.schema.ts`](apps/scheduler-service/src/digest/pending-digest.schema.ts))
   gets it picked up and dispatched as `digest.due` right away, with no need
-  to wait for 18:00 or edit the cron expression.
+  to wait for 18:00 or edit the cron expression. `date` is unique, so pick
+  one that isn't already queued. Example document to insert into
+  `scheduler.pending-digests`:
+
+  ```json
+  {
+    "date": "2026-08-13",
+    "eventId": "<random-uuid>",
+    "payload": {
+      "adminEmail": "admin@example.com",
+      "date": "2026-08-13",
+      "calls": [
+        {
+          "requestId": "7066d6cc-aba9-4936-9146-142e54a2e049",
+          "email": "user@example.com",
+          "scheduledAt": "2026-08-13T07:30:00.000Z"
+        }
+      ]
+    }
+  }
+  ```
 
 Both routes work by feeding the existing outbox dispatchers a document they
 already know how to handle, rather than changing how or when they normally
@@ -171,15 +231,15 @@ flowchart LR
 
 ### Which event goes where, and why
 
-| Event | Published by | Consumed by | What it triggers |
-|---|---|---|---|
-| `call.requested` | Call Requests Service | Communication | "We got your request" email to the customer |
-| `call.approved` | Call Requests Service | Communication, Scheduler | Communication emails the customer; Scheduler starts tracking this call so it can remind later |
-| `call.rejected` | Call Requests Service | Communication | Rejection email to the customer |
-| `call.canceled` | Call Requests Service | Communication, Scheduler | Cancellation email to the customer; Scheduler stops tracking the call |
-| `reminder.wakeup` | Scheduler Service | Scheduler Service (self, via `reminder.delay` delayed exchange) | Fires 2h before the call; if still `SCHEDULED`, publishes `reminder.due` |
-| `reminder.due` | Scheduler Service | Communication | Email to both customer and admin, 2 hours before the call |
-| `digest.due` | Scheduler Service | Communication | Daily summary email to the admin |
+| Event             | Published by          | Consumed by                                                     | What it triggers                                                                              |
+| ----------------- | --------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `call.requested`  | Call Requests Service | Communication                                                   | "We got your request" email to the customer                                                   |
+| `call.approved`   | Call Requests Service | Communication, Scheduler                                        | Communication emails the customer; Scheduler starts tracking this call so it can remind later |
+| `call.rejected`   | Call Requests Service | Communication                                                   | Rejection email to the customer                                                               |
+| `call.canceled`   | Call Requests Service | Communication, Scheduler                                        | Cancellation email to the customer; Scheduler stops tracking the call                         |
+| `reminder.wakeup` | Scheduler Service     | Scheduler Service (self, via `reminder.delay` delayed exchange) | Fires 2h before the call; if still `SCHEDULED`, publishes `reminder.due`                      |
+| `reminder.due`    | Scheduler Service     | Communication                                                   | Email to both customer and admin, 2 hours before the call                                     |
+| `digest.due`      | Scheduler Service     | Communication                                                   | Daily summary email to the admin                                                              |
 
 ### Example: what happens when a user creates a call request
 
@@ -207,8 +267,8 @@ flowchart LR
    that same write — the same outbox pattern as above.
 2. Its outbox dispatcher relays `call.approved` to RabbitMQ.
 3. Communication Service sees it and emails the customer.
-4. Scheduler Service sees it too, and runs the *same pattern on its own
-   database*: it writes a local record for this call (customer email, time,
+4. Scheduler Service sees it too, and runs the _same pattern on its own
+   database_: it writes a local record for this call (customer email, time,
    admin email), with a reminder wakeup — timed for 2 hours before the
    call — embedded in that write. This is a second, independent outbox,
    entirely separate from Call Requests Service's; Scheduler's own
@@ -366,15 +426,15 @@ stateDiagram-v2
     SCHEDULED --> CANCELED: admin cancels
 ```
 
-| Trigger | Routing key | Recipient(s) | Purpose |
-|---|---|---|---|
-| User submits a request | `call.requested` | Customer | Confirms the request was received |
-| Admin approves | `call.approved` | Customer | Confirms approval, notes a reminder will follow |
-| Admin rejects | `call.rejected` | Customer | Notifies rejection, suggests booking another time |
-| Admin cancels a scheduled call | `call.canceled` | Customer | Notifies cancellation |
-| 2 hours before the call | `reminder.due` (delayed exchange, scheduled once at approval time) | Customer and Admin | Two emails, one per recipient |
-| Daily at 18:00 Europe/Istanbul | `digest.due` | Admin | One email listing every call scheduled for the next day |
-| Admin marks a call as Called | — | — | Internal status change only; not part of the assignment's email list, so no email is sent |
+| Trigger                        | Routing key                                                        | Recipient(s)       | Purpose                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------ | ------------------ | ----------------------------------------------------------------------------------------- |
+| User submits a request         | `call.requested`                                                   | Customer           | Confirms the request was received                                                         |
+| Admin approves                 | `call.approved`                                                    | Customer           | Confirms approval, notes a reminder will follow                                           |
+| Admin rejects                  | `call.rejected`                                                    | Customer           | Notifies rejection, suggests booking another time                                         |
+| Admin cancels a scheduled call | `call.canceled`                                                    | Customer           | Notifies cancellation                                                                     |
+| 2 hours before the call        | `reminder.due` (delayed exchange, scheduled once at approval time) | Customer and Admin | Two emails, one per recipient                                                             |
+| Daily at 18:00 Europe/Istanbul | `digest.due`                                                       | Admin              | One email listing every call scheduled for the next day                                   |
+| Admin marks a call as Called   | —                                                                  | —                  | Internal status change only; not part of the assignment's email list, so no email is sent |
 
 Communication Service is the only service that sends email. It holds every
 template and contains no business logic beyond mapping a routing key to a
@@ -494,10 +554,9 @@ rendered message. See `apps/communication-service/src/templates/`.
   state (`upsert`, `$set`), so replaying the same event twice produces the
   same document either way. Two places aren't so lucky, and both claim the
   wire-level `eventId` in a Mongo `processed-events` collection (`eventId`
-  unique index) *before* doing their non-idempotent work, releasing the
+  unique index) _before_ doing their non-idempotent work, releasing the
   claim if that work fails so a genuine redelivery can still retry instead
   of being skipped as a false duplicate:
-
   - **Communication Service**, for the obvious reason — sending an email
     has no natural idempotency; replaying the same event twice sends it
     twice. See `CallEventsConsumer`
@@ -505,7 +564,7 @@ rendered message. See `apps/communication-service/src/templates/`.
   - **Scheduler Service's `CallEventsConsumer`**
     ([`apps/scheduler-service/src/consumers/call-events.consumer.ts`](apps/scheduler-service/src/consumers/call-events.consumer.ts)),
     less obviously — `handleCallApproved` looks idempotent (`upsert` on
-    `requestId`) but isn't quite: it also mints a *fresh* `eventId` for the
+    `requestId`) but isn't quite: it also mints a _fresh_ `eventId` for the
     reminder wakeup it schedules on every call. A redelivered `call.approved`
     (e.g. the write succeeds but the ack to RabbitMQ never lands) would mint
     a second wakeup with a different id, invisible to Communication
@@ -544,12 +603,12 @@ in the code they'd apply to as well.
 
 - **A TTL on idempotency claims.** Both `CallEventsConsumer`s (Scheduler and
   Communication) claim an `eventId` in a `processed-events` collection
-  *before* doing their non-idempotent work, releasing the claim only if
+  _before_ doing their non-idempotent work, releasing the claim only if
   that work explicitly fails. If the process crashes in between — work
   never completes, `release` never runs — the claim is stuck forever, and a
   later redelivery sees "already handled" and silently skips work that was,
   in fact, never done. A TTL index on the claim would let a stuck claim
-  expire and become retryable again, but a *blanket* TTL reintroduces the
+  expire and become retryable again, but a _blanket_ TTL reintroduces the
   original problem for successful claims: a sufficiently late redelivery
   (broker outage, etc.) would find the claim already expired and redo work
   that already happened. Doing this correctly needs a two-phase claim —
