@@ -23,6 +23,5 @@ export interface ScheduledCallRepository {
 
   findByRequestId(requestId: string): Promise<ScheduledCallInput | null>;
 
-
   findMostRecentAdminEmail(): Promise<string | null>;
 }

@@ -43,7 +43,6 @@ export class RabbitMqConnectionService
     );
   }
 
-  /** The open channel — queue/consumer setup is each consumer's own concern. */
   get channel(): ConfirmChannel {
     if (!this._channel) {
       throw new Error('RabbitMQ channel is not initialized.');
